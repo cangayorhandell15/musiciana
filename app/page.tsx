@@ -41,7 +41,7 @@ export default function LoginPage() {
   if (loading) return <div className="flex-1 bg-[#050505]" />;
 
   return (
-    <main className="flex-1 min-h-0 relative w-full overflow-y-auto md:overflow-hidden px-5 pt-20 pb-5 md:px-8 md:pt-16 md:pb-6 selection:bg-pink-500/30">
+    <main className="flex-1 min-h-0 relative w-full overflow-y-auto md:overflow-hidden px-5 py-6 md:px-8 md:py-6 selection:bg-pink-500/30 flex items-center justify-center">
       
       {/* GLOW WRAPPER - Nakaposition sa labas ng main content para hindi ma-clip */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
@@ -51,7 +51,7 @@ export default function LoginPage() {
       </div>
 
       {/* CONTENT CONTAINER - Dito ang UI mo */}
-      <div className="relative z-10 mx-auto grid min-h-full w-full max-w-6xl items-center gap-6 md:grid-cols-[1fr_380px] md:gap-10">
+      <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-6 md:grid-cols-[1fr_380px] md:gap-10">
         
         {/* LEFT SIDE: Story & Welcome */}
         <motion.div 
