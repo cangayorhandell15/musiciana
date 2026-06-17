@@ -3,20 +3,28 @@
 import { createBrowserClient } from "@supabase/ssr";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const supabase = useMemo(() => {
+    if (!supabaseUrl || !supabaseAnonKey) return null;
+
+    return createBrowserClient(supabaseUrl, supabaseAnonKey);
+  }, []);
 
   useEffect(() => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
     const checkUser = async () => {
       const { data } = await supabase.auth.getUser();
       if (data.user) router.push("/dashboard");
@@ -28,7 +36,7 @@ export default function LoginPage() {
       if (event === "SIGNED_IN" && session) router.push("/dashboard");
     });
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, [router, supabase]);
 
   if (loading) return <div className="flex-1 bg-[#050505]" />;
 
@@ -86,20 +94,26 @@ export default function LoginPage() {
              </span>
           </div>
           
-          <Auth
-            supabaseClient={supabase}
-            appearance={{ 
-              theme: ThemeSupa,
-              variables: {
-                default: { 
-                  colors: { brand: '#ec4899', brandAccent: '#d946ef' },
-                  radii: { borderRadiusButton: '12px', buttonBorderRadius: '12px' }
+          {supabase ? (
+            <Auth
+              supabaseClient={supabase}
+              appearance={{ 
+                theme: ThemeSupa,
+                variables: {
+                  default: { 
+                    colors: { brand: '#ec4899', brandAccent: '#d946ef' },
+                    radii: { borderRadiusButton: '12px', buttonBorderRadius: '12px' }
+                  }
                 }
-              }
-            }}
-            theme="dark"
-            providers={["google"]}
-          />
+              }}
+              theme="dark"
+              providers={["google"]}
+            />
+          ) : (
+            <p className="text-center text-sm leading-relaxed text-zinc-400">
+              Supabase is not configured yet. Add the public URL and anon key to continue.
+            </p>
+          )}
         </motion.div>
       </div>
     </main>

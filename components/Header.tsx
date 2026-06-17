@@ -2,14 +2,12 @@
 
 import { createBrowserClient } from "@supabase/ssr";
 import type { User } from "@supabase/supabase-js";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 
-const supabase = createBrowserClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const NAV_ITEMS = ["Home", "About", "Feedback", "Contact"];
 const NAV_TARGET_PATH = "/dashboard";
@@ -21,9 +19,13 @@ export default function Header() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [nickname, setNickname] = useState<string>("User");
   const [scrolled, setScrolled] = useState(false);
+  const supabase = useMemo(() => {
+    if (!supabaseUrl || !supabaseAnonKey) return null;
+
+    return createBrowserClient(supabaseUrl, supabaseAnonKey);
+  }, []);
 
   useEffect(() => {
-  
     // Pinagsamang logic para laging updated ang user at nickname
     const updateUser = (sessionUser: User | null) => {
       setUser(sessionUser);
@@ -33,6 +35,14 @@ export default function Header() {
       }
     };
 
+    // Scroll effect
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", onScroll);
+
+    if (!supabase) {
+      return () => window.removeEventListener("scroll", onScroll);
+    }
+
     // Initial load
     supabase.auth.getUser().then(({ data }) => updateUser(data.user));
 
@@ -41,17 +51,11 @@ export default function Header() {
       updateUser(session?.user ?? null);
     });
 
-    // Scroll effect
-    const onScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll);
-
     return () => {
       subscription.unsubscribe();
       window.removeEventListener("scroll", onScroll);
     };
-
-    
-  }, []);
+  }, [supabase]);
 
   return (
     <header
@@ -126,7 +130,7 @@ export default function Header() {
                   <hr className="border-white/5 my-1" />
                   <button
                     onClick={async () => {
-                      await supabase.auth.signOut();
+                      await supabase?.auth.signOut();
                       setIsDropdownOpen(false);
                       router.push("/");
                     }}
