@@ -77,7 +77,7 @@ export default function LoginPage() {
                 <span>🎵</span> The Story Behind
               </h3>
               <p className="text-zinc-400 text-xs md:text-sm leading-relaxed italic">
-                &quot;Musiciana ay ginawa para sa girlfriend kong si Diana. Dahil maganda ang boses niya, pinagsama ko ang &apos;Music&apos; at &apos;Diana&apos; (Musiciana). Gusto ko lang i-share sa lahat ang website na ito dahil alam kong marami sa atin ang mahilig sa karaoke.&quot;
+                &quot;Musiciana is a labor of love dedicated to my girlfriend, Diana. Inspired by her beautiful voice, I blended 'Music' and 'Diana' to create a space that celebrates her talent. I’m sharing this platform with you all, hoping you find the same joy in music and singing that she brings into my life.&quot;
               </p>
             </div>
           </div>
