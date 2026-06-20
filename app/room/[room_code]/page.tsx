@@ -517,7 +517,7 @@ export default function RoomPage() {
 
       ytPlayerRef.current = new window.YT.Player(ytContainerRef.current, {
         videoId: currentVideoId,
-        host: "https://www.youtube-nocookie.com",
+   
         playerVars: {
           modestbranding: 1,
           rel: 0,
