@@ -3,6 +3,7 @@
 import { motion, AnimatePresence, type Variants } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/client";
 
 const supabase = createClient();
@@ -16,7 +17,7 @@ export default function LandingPage() {
   const router = useRouter();
   const [activeUsers, setActiveUsers] = useState<number>(0);
   const [activeRooms, setActiveRooms] = useState<number>(0);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [feedback, setFeedback] = useState({ email: '', rating: 5, message: '' });
   const [contactData, setContactData] = useState({ name: '', email: '', message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -61,7 +62,7 @@ export default function LandingPage() {
     });
     showToast("Thank you for your feedback!", "success");
     setFeedback({ ...feedback, message: '' });
-  } catch (err) {
+  } catch {
     showToast("Failed to send feedback. Try again.", "error");
   } finally {
     setIsSubmitting(false);
@@ -84,7 +85,7 @@ const handleContactSubmit = async () => {
     });
     showToast("Message sent! Thanks for reaching out.", "success");
     setContactData({ ...contactData, message: '' }); // Linisin ang textarea pagkatapos
-  } catch (err) {
+  } catch {
     showToast("Error sending message. Try again.", "error");
   } finally {
     setIsSubmitting(false);

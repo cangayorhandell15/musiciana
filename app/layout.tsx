@@ -1,4 +1,6 @@
-import type { Metadata } from "next";
+"use client"; // Kailangan ito para magamit ang usePathname
+
+import { usePathname } from "next/navigation";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
@@ -14,34 +16,28 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Musiciana",
-  description: "Vibe and sync tracks with your friends simultaneously.",
-};
-
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const pathname = usePathname();
+  
+  // I-check kung ang kasalukuyang URL ay nagsisimula sa "/room"
+  // Lalabas lang ang Header at Footer kung HINDI tayo nasa loob ng room
+  const isRoomPage = pathname.startsWith("/room");
+
   return (
-    // Tinanggal ang data-scroll-behavior="smooth" dito dahil nasa globals.css na ang scroll-behavior: smooth;
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      {/* min-h-screen: Sinisigurado na buong screen height ang body.
-        flex flex-col: Inilalagay ang Header, Main, at Footer nang patayo (column).
-      */}
       <body className="min-h-screen bg-zinc-950 text-white flex flex-col">
         
-        <Header />
+        {!isRoomPage && <Header />}
 
-        {/* flex-1: Ito ang nagtutulak sa Footer pababa kapag maikli ang content.
-          flex flex-col w-full: Sinisigurado na responsive ang content.
-        */}
         <main className="flex-1 min-h-0 flex flex-col w-full">
           {children}
         </main>
 
-        <Footer />
+        {!isRoomPage && <Footer />}
 
       </body>
     </html>

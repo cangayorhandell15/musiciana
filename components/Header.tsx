@@ -118,27 +118,72 @@ export default function Header() {
 
             <AnimatePresence>
               {isDropdownOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                  className="absolute right-0 mt-3 w-48 bg-[#09090b] border border-white/10 rounded-xl py-2 shadow-2xl z-50"
-                >
-                  <p className="px-4 py-2 text-[10px] uppercase tracking-widest text-zinc-500 font-bold truncate">
-                    {nickname}
-                  </p>
-                  <hr className="border-white/5 my-1" />
-                  <button
-                    onClick={async () => {
-                      await supabase?.auth.signOut();
-                      setIsDropdownOpen(false);
-                      router.push("/");
-                    }}
-                    className="w-full text-left px-4 py-2 text-xs font-bold text-red-400 hover:bg-red-500/10 transition-colors"
-                  >
-                    SIGN OUT 🚪
-                  </button>
-                </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.95 }}
+            className="absolute right-0 mt-3 w-48 bg-[#09090b] border border-white/10 rounded-xl py-2 shadow-2xl z-50"
+          >
+            <p className="px-4 py-2 text-[10px] uppercase tracking-widest text-zinc-500 font-bold truncate">
+              {nickname}
+            </p>
+            <hr className="border-white/5 my-1" />
+            
+            {/* BAGONG NAVIGATION BUTTONS */}
+           {/* CREATE ROOM BUTTON */}
+         <button
+          onClick={async () => {
+            setIsDropdownOpen(false); // Close dropdown
+
+            if (!supabase || !user) {
+              router.push("/");
+              return;
+            }
+            
+            // 1. Generate unique room code
+            const newRoomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+            
+            // 2. Insert directly to Supabase
+            const { error } = await supabase
+              .from("rooms")
+              .insert([{ room_code: newRoomCode, host_id: user.id, is_playing: false }]);
+
+            if (!error) {
+              // 3. Redirect agad sa room page
+              router.push(`/room/${newRoomCode}`);
+            } else {
+              alert("Error creating room!");
+            }
+          }}
+          className="w-full text-left px-4 py-2 text-xs font-bold text-white hover:bg-white/5 transition-colors flex items-center gap-2"
+        >
+          ✨ CREATE ROOM
+        </button>
+
+          {/* JOIN ROOM BUTTON */}
+          <button
+            onClick={() => { 
+              router.push("/dashboard/joinroom"); 
+              setIsDropdownOpen(false); 
+            }}
+            className="w-full text-left px-4 py-2 text-xs font-bold text-white hover:bg-white/5 transition-colors flex items-center gap-2"
+          >
+            🔗 JOIN ROOM
+          </button>
+            
+            <hr className="border-white/5 my-1" />
+            
+            <button
+              onClick={async () => {
+                await supabase?.auth.signOut();
+                setIsDropdownOpen(false);
+                router.push("/");
+              }}
+              className="w-full text-left px-4 py-2 text-xs font-bold text-red-400 hover:bg-red-500/10 transition-colors"
+            >
+              SIGN OUT 🚪
+            </button>
+          </motion.div>
               )}
             </AnimatePresence>
           </>
