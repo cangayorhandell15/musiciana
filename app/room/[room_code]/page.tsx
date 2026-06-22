@@ -120,6 +120,7 @@ export default function RoomPage() {
 
     let isMounted = true;
     let activeChannel: ReturnType<typeof supabase.channel> | null = null;
+    let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
     const fetchData = async () => {
       const {
@@ -196,7 +197,7 @@ export default function RoomPage() {
         }
       );
 
-      // Room: DELETE — kapag nabura ang room ng cron, i-redirect lahat ng users
+      // Room: DELETE
       channel.on(
         "postgres_changes",
         { event: "DELETE", schema: "public", table: "rooms", filter: `room_code=eq.${roomCode}` },
@@ -205,7 +206,7 @@ export default function RoomPage() {
         }
       );
 
-      // Presence: sync → rebuild users map + auto-delete if empty
+      // Presence: sync
       channel.on("presence", { event: "sync" }, () => {
         const state = channel.presenceState<{
           user_id: string;
@@ -220,7 +221,7 @@ export default function RoomPage() {
         });
         setUsers(map);
 
-        // Auto-delete if room is empty
+        // Auto-delete kung walang tao sa room
         const totalUsers = Object.values(state).flat().length;
         if (totalUsers === 0) {
           if (!emptyRoomTimerRef.current) {
@@ -250,7 +251,7 @@ export default function RoomPage() {
         }
       });
 
-      // Presence: join → add user
+      // Presence: join
       channel.on("presence", { event: "join" }, ({ newPresences }) => {
         setUsers((prev) => {
           const next = new Map(prev);
@@ -262,7 +263,7 @@ export default function RoomPage() {
         });
       });
 
-      // Presence: leave → remove user
+      // Presence: leave
       channel.on("presence", { event: "leave" }, ({ leftPresences }) => {
         setUsers((prev) => {
           const next = new Map(prev);
@@ -274,22 +275,13 @@ export default function RoomPage() {
         });
       });
 
-      if (!isMounted) {
-        supabase.removeChannel(channel);
-        activeChannel = null;
-        return;
-      }
-
-      let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
-
-      // I-subscribe ang channel at simulan ang tracking ng realtime user features
-      await channel.subscribe(async (status) => {
+      // Simulan ang subscription
+      channel.subscribe(async (status) => {
         console.log("[subscribe] status:", status);
         
-        if (status === "SUBSCRIBED" && user) {
+        if (status === "SUBSCRIBED" && user && roomData && isMounted) {
           console.log("[subscribe] user found, tracking presence...");
           
-          // 1. Dito natin ipapasa ang totoong data para sa Presence Tracking!
           await channel.track({
             user_id: user.id,
             email: user.email || "",
@@ -297,7 +289,6 @@ export default function RoomPage() {
             is_host: user.id === roomData.host_id,
           });
           
-          // 2. Heartbeat logic para sa database room_presence table
           const upsertPresence = async () => {
             const { error } = await supabase.from("room_presence").upsert({
               room_code: roomCode,
@@ -307,39 +298,28 @@ export default function RoomPage() {
             if (error) {
               console.error("[heartbeat] failed:", error.message);
             } else {
-              console.log("[heartbeat] success for room:", roomCode);
+              console.log("[heartbeat] success:", roomCode);
             }
           };
 
-          // Patakbuhin agad pagkasok, at ulitin kada 30 segundo
           await upsertPresence();
           heartbeatInterval = setInterval(upsertPresence, 30000);
-          heartbeatIntervalRef.current = heartbeatInterval;
-        }
-      });
-          // Upsert presence sa DB para malaman ng cron na may tao sa room
-          const upsertPresence = async () => {
-            await supabase.from("room_presence").upsert({
-              room_code: roomCode,
-              user_id: user.id,
-              last_seen_at: new Date().toISOString(),
-            });
-          };
-
-          await upsertPresence();
-          heartbeatInterval = setInterval(upsertPresence, 30000);
-          heartbeatIntervalRef.current = heartbeatInterval;
         }
       });
     };
 
+    // Patakbuhin ang async data fetch handler
     fetchData();
 
+    // ANG TAHANAN NG CLEANUP: Nandito dapat sa pinakailalim ng useEffect scope, hinding-hindi sa loob ng fetchData!
     return () => {
       isMounted = false;
       if (heartbeatIntervalRef.current) {
         clearInterval(heartbeatIntervalRef.current);
         heartbeatIntervalRef.current = null;
+      }
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
       }
       if (emptyRoomTimerRef.current) {
         clearTimeout(emptyRoomTimerRef.current);
