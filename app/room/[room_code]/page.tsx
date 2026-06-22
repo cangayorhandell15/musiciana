@@ -108,6 +108,8 @@ export default function RoomPage() {
   const ytContainerRef = useRef<HTMLDivElement | null>(null);
   const ytPlayerRef = useRef<YTPlayerInstance | null>(null);
   const ytApiReadyRef = useRef(false);
+  const emptyRoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Always-current callback refs so the YT event handlers (set up once)
   // never call stale closures.
   const onPlayerEndedRef = useRef<() => void>(() => {});
@@ -124,8 +126,6 @@ export default function RoomPage() {
         data: { user },
       } = await supabase.auth.getUser();
 
-      // Bail out if this effect instance was already cleaned up
-      // (React Strict Mode double-invokes effects in dev)
       if (!isMounted) return;
       setCurrentUser(user);
 
@@ -154,8 +154,6 @@ export default function RoomPage() {
         config: { presence: { key: user?.id ?? "anon" } },
       });
 
-      // Store the channel immediately so cleanup can always find it,
-      // even if this effect instance gets cancelled mid-setup.
       activeChannel = channel;
 
       // Queue: INSERT
@@ -188,26 +186,26 @@ export default function RoomPage() {
         (payload) => {
           const newRoom = payload.new as Room;
           setRoom((prevRoom) => {
-            // Only reset the player-ready/mute state when the video itself
-            // actually changed. Without this guard, ANY room update — like
-            // the realtime echo of the host's own playNext() write, or an
-            // unrelated is_playing toggle — would reset isPlayerReady back
-            // to false even after the video had already loaded fine,
-            // causing the 8/12s timeout to fire on a working video.
             const videoChanged =
               (prevRoom?.current_video_id ?? null) !== (newRoom?.current_video_id ?? null);
             if (videoChanged) {
               setIsPlayerReady(false);
-              // Note: isMuted is intentionally NOT reset here — once the
-              // user unmutes, it should stay unmuted across subsequent
-              // songs instead of re-muting on every video change.
             }
             return newRoom;
           });
         }
       );
 
-      // Presence: sync → rebuild users map
+      // Room: DELETE — kapag nabura ang room ng cron, i-redirect lahat ng users
+      channel.on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "rooms", filter: `room_code=eq.${roomCode}` },
+        () => {
+          router.push("/dashboard");
+        }
+      );
+
+      // Presence: sync → rebuild users map + auto-delete if empty
       channel.on("presence", { event: "sync" }, () => {
         const state = channel.presenceState<{
           user_id: string;
@@ -215,11 +213,41 @@ export default function RoomPage() {
           display_name: string;
           is_host: boolean;
         }>();
+
         const map = new Map<string, PresenceUser>();
         Object.values(state).forEach((presences) => {
           presences.forEach((p) => map.set(p.user_id, p));
         });
         setUsers(map);
+
+        // Auto-delete if room is empty
+        const totalUsers = Object.values(state).flat().length;
+        if (totalUsers === 0) {
+          if (!emptyRoomTimerRef.current) {
+            emptyRoomTimerRef.current = setTimeout(async () => {
+              const latestState = channel.presenceState();
+              const latestCount = Object.values(latestState).flat().length;
+              if (latestCount === 0) {
+                try {
+                  await fetch("/api/delete-room", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ room_code: roomCode }),
+                  });
+                  console.log(`[auto-delete] Room ${roomCode} deleted.`);
+                } catch (err) {
+                  console.error("[auto-delete] Failed:", err);
+                }
+              }
+              emptyRoomTimerRef.current = null;
+            }, 5000);
+          }
+        } else {
+          if (emptyRoomTimerRef.current) {
+            clearTimeout(emptyRoomTimerRef.current);
+            emptyRoomTimerRef.current = null;
+          }
+        }
       });
 
       // Presence: join → add user
@@ -246,26 +274,50 @@ export default function RoomPage() {
         });
       });
 
-      // If cleanup already ran before we got here, don't subscribe at all
       if (!isMounted) {
         supabase.removeChannel(channel);
         activeChannel = null;
         return;
       }
 
+      let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
       await channel.subscribe(async (status) => {
-        if (status === "SUBSCRIBED" && user) {
-          // Broadcast this user's presence info
-          await channel.track({
-            user_id: user.id,
-            email: user.email ?? "",
-            display_name:
-              user.user_metadata?.full_name ??
-              user.user_metadata?.name ??
-              user.email?.split("@")[0] ??
-              "Guest",
-            is_host: user.id === roomData?.host_id,
-          });
+  console.log("[subscribe] status:", status); // ← dagdag ito
+  if (status === "SUBSCRIBED" && user) {
+    console.log("[subscribe] user found, tracking presence..."); // ← at ito
+    await channel.track({ ... });
+    
+    const upsertPresence = async () => {
+      const { error } = await supabase.from("room_presence").upsert({
+        room_code: roomCode,
+        user_id: user.id,
+        last_seen_at: new Date().toISOString(),
+      });
+      if (error) {
+        console.error("[heartbeat] failed:", error.message);
+      } else {
+        console.log("[heartbeat] success:", roomCode);
+      }
+    };
+
+    await upsertPresence();
+    heartbeatInterval = setInterval(upsertPresence, 30000);
+    heartbeatIntervalRef.current = heartbeatInterval;
+  }
+});
+          // Upsert presence sa DB para malaman ng cron na may tao sa room
+          const upsertPresence = async () => {
+            await supabase.from("room_presence").upsert({
+              room_code: roomCode,
+              user_id: user.id,
+              last_seen_at: new Date().toISOString(),
+            });
+          };
+
+          await upsertPresence();
+          heartbeatInterval = setInterval(upsertPresence, 30000);
+          heartbeatIntervalRef.current = heartbeatInterval;
         }
       });
     };
@@ -274,12 +326,20 @@ export default function RoomPage() {
 
     return () => {
       isMounted = false;
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+      if (emptyRoomTimerRef.current) {
+        clearTimeout(emptyRoomTimerRef.current);
+        emptyRoomTimerRef.current = null;
+      }
       if (activeChannel) {
         supabase.removeChannel(activeChannel);
         activeChannel = null;
       }
     };
-  }, [roomCode, supabase]);
+  }, [roomCode, supabase, router]);
 
   // ─── Debounced search ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -305,26 +365,21 @@ export default function RoomPage() {
 
   // ─── Add to queue ──────────────────────────────────────────────────────────
   const addToQueue = async (video: YouTubeVideo) => {
-    // 1. Authentication check
     if (!currentUser) {
       alert("Please log in to add songs.");
       return;
     }
 
-    // 2. Authorization check: Host lang ang pwedeng mag-add
     if (!isHost) {
       alert("Only the host can add songs to the queue.");
       return;
     }
 
-    // 3. Validation
     if (!YOUTUBE_VIDEO_ID_PATTERN.test(video.id.videoId)) {
       alert("This video cannot be queued.");
       return;
     }
 
-    // 4. Ihanda ang data (Wala nang upsert dito para iwas RLS error)
-    // Tandaan: Ang pag-sync sa 'songs' table ay nasa /api/search/route.ts na
     const newEntry = {
       room_code: roomCode,
       video_id: video.id.videoId,
@@ -333,13 +388,11 @@ export default function RoomPage() {
       added_by: currentUser.id,
     };
 
-    // 5. Optimistic update (para ramdam agad ang bilis sa UI)
     const tempId = `temp-${video.id.videoId}-${Date.now()}`;
     setQueue((prev) => [...prev, { ...newEntry, id: tempId }]);
     setSearchResults([]);
     setSearchQuery("");
 
-    // 6. Insert sa queue table
     const { error, data } = await supabase
       .from("queue")
       .insert([newEntry])
@@ -348,11 +401,9 @@ export default function RoomPage() {
 
     if (error) {
       console.error("Add to queue error:", error);
-      // Roll back UI kung may error
       setQueue((prev) => prev.filter((s) => s.id !== tempId));
       alert("Failed to add song: " + error.message);
     } else {
-      // I-replace ang temp entry ng data galing sa DB
       setQueue((prev) =>
         prev.map((s) => (s.id === tempId ? data : s))
       );
@@ -366,26 +417,20 @@ export default function RoomPage() {
 
   // ─── Play next (host only) ─────────────────────────────────────────────────
   const playNext = useCallback(async () => {
-    // 1. Kuhanin ang pinaka-unang kanta sa queue
     const nextSong = queueRef.current.find(s => !s.id.startsWith("temp-"));
 
     if (!nextSong) {
       console.log("[playNext] Queue empty, clearing player");
-      // Walang susunod na kanta, i-clear ang player sa DB
       await supabase.from("rooms").update({ current_video_id: null, is_playing: false }).eq("room_code", roomCode);
       return;
     }
 
     console.log("[playNext] Playing:", nextSong.title);
 
-    // 2. I-update ang UI state para ramdam agad (Optimistic)
     setIsPlayerReady(false);
     setRoom((prev) => (prev ? { ...prev, current_video_id: nextSong.video_id, is_playing: true } : prev));
-    
-    // Tanggalin na sa local queue
     setQueue((prev) => prev.filter((s) => s.id !== nextSong.id));
 
-    // 3. I-update ang DB (Room at Queue sa iisang batch kung kaya, pero sige isa-isa para safe)
     const { error: roomErr } = await supabase
       .from("rooms")
       .update({ 
@@ -401,7 +446,6 @@ export default function RoomPage() {
 
     if (roomErr || queueErr) {
       console.error("Database update failed:", roomErr || queueErr);
-      // Optional: Mag-re-fetch kung nag-fail
       alert("Nagka-error sa pag-play ng kanta.");
     }
   }, [roomCode, supabase]);
@@ -412,16 +456,13 @@ export default function RoomPage() {
     setIsPlayerReady(false);
 
     if (currentVideoId) {
-      // Mark video as restricted
       setRestrictedVideoIds((prev) => new Set(prev).add(currentVideoId));
     }
 
     if (isHost) {
       if (queue.length > 0) {
-        // Go directly to next song — playNext will update current_video_id in DB
         void playNext();
       } else {
-        // No songs left, just clear the player
         await supabase
           .from("rooms")
           .update({ current_video_id: null })
@@ -430,8 +471,6 @@ export default function RoomPage() {
     }
   }, [currentVideoId, isHost, playNext, queue.length, roomCode, supabase]);
 
-  // Keep the always-current refs in sync so YT event handlers (registered
-  // once per player instance) never read a stale playNext/handlePlayerError.
   useEffect(() => {
     onPlayerEndedRef.current = () => {
       if (isHost) void playNext();
@@ -458,12 +497,6 @@ export default function RoomPage() {
     };
   }, []);
 
-  // ─── Create / recreate the YT player whenever the video changes ───────────
-  // Always-current handlers for ready/state-change, set fresh on every
-  // render so the listeners registered once at player construction time
-  // never read a stale `currentVideoId` or a `cancelled` flag from a
-  // previous effect run (that was the root cause of swapped videos via
-  // loadVideoById going silently unacknowledged).
   const onPlayerReadyRef = useRef<() => void>(() => {});
   const onPlayerStateChangeRef = useRef<(state: number) => void>(() => {});
 
@@ -495,11 +528,6 @@ export default function RoomPage() {
     const loadOrCreate = () => {
       if (!ytContainerRef.current) return;
 
-      // If a player instance already exists, just swap the video in place —
-      // far faster than destroying and rebuilding the iframe from scratch.
-      // Its event listeners (registered once below) stay attached and
-      // delegate to the always-current refs above, so this swap is picked
-      // up correctly regardless of which effect run originally created it.
       if (ytPlayerRef.current) {
         try {
           ytPlayerRef.current.loadVideoById(currentVideoId);
@@ -509,7 +537,7 @@ export default function RoomPage() {
           try {
             ytPlayerRef.current.destroy();
           } catch {
-            // ignore — instance was already broken
+            // ignore
           }
           ytPlayerRef.current = null;
         }
@@ -517,7 +545,6 @@ export default function RoomPage() {
 
       ytPlayerRef.current = new window.YT.Player(ytContainerRef.current, {
         videoId: currentVideoId,
-   
         playerVars: {
           modestbranding: 1,
           rel: 0,
@@ -543,7 +570,6 @@ export default function RoomPage() {
     if (ytApiReadyRef.current) {
       loadOrCreate();
     } else {
-      // Poll until the IFrame API script has finished loading.
       pollId = window.setInterval(() => {
         if (ytApiReadyRef.current) {
           window.clearInterval(pollId);
@@ -560,10 +586,6 @@ export default function RoomPage() {
 
   // ─── Keep mute state in sync with the live player ──────────────────────
   useEffect(() => {
-    // Guard on isPlayerReady (set by the real YT onReady event), not just
-    // ref existence — the ref is assigned synchronously when we call
-    // `new window.YT.Player(...)`, but the instance's methods aren't
-    // actually callable until its internal iframe has finished initializing.
     if (!ytPlayerRef.current || !isPlayerReady) return;
     try {
       if (isMuted) {
@@ -597,17 +619,11 @@ export default function RoomPage() {
       return;
     }
 
-    // Only test once per video
     if (testedVideoRef.current === currentVideoId) return;
 
     console.log("[timeout-detector] Starting test for video:", currentVideoId);
     testedVideoRef.current = currentVideoId;
 
-    // Set timeout to detect if video doesn't load within 8 seconds.
-    // We check isPlayerReady at fire-time (not just at schedule-time) because
-    // this effect intentionally only runs once per video — it does NOT re-run
-    // when onReady later flips isPlayerReady to true, so the timeout must
-    // self-check rather than rely on a cleanup re-run to cancel it.
     const timeoutId = window.setTimeout(() => {
       setIsPlayerReady((ready) => {
         if (ready) {
@@ -655,9 +671,6 @@ export default function RoomPage() {
 
     if (!isHost || room?.current_video_id || queue.length === 0) return;
 
-    // If every entry currently in the queue is still a temp (optimistic)
-    // entry, the DB insert hasn't resolved yet — playNext would no-op.
-    // Retry shortly until a real entry shows up instead of giving up silently.
     const allTemp = queue.every((song) => song.id.startsWith("temp-"));
     const delay = allTemp ? 300 : 0;
 
@@ -677,7 +690,6 @@ export default function RoomPage() {
     const { error } = await supabase.from("queue").delete().eq("id", id);
     if (error) {
       console.error("Remove error:", error);
-      // Re-fetch on failure
       const { data } = await supabase
         .from("queue")
         .select("*")
@@ -689,7 +701,6 @@ export default function RoomPage() {
 
   // ─── Leave room ────────────────────────────────────────────────────────────
   const leaveRoom = () => {
-    // Presence auto-untrack when channel is removed on unmount
     router.push("/dashboard");
   };
 
@@ -718,7 +729,6 @@ export default function RoomPage() {
     <h1 className="text-3xl font-black text-white tracking-[0.2em] uppercase">
       MUSICIANA
     </h1>
-
   </div>
 
   {/* KANAN: Mga Buttons / Actions */}
@@ -747,10 +757,6 @@ export default function RoomPage() {
         <div
           className="md:col-span-2 h-[500px] bg-black rounded-2xl border border-white/5 overflow-hidden flex items-center justify-center relative"
         >
-          {/* The YT container div is ALWAYS mounted — never conditionally
-              removed — so the player instance never gets orphaned from its
-              DOM node. All other states (loading / restricted / invalid)
-              render as overlays on top of it instead of replacing it. */}
           <div className="w-full h-full">
             <div ref={ytContainerRef} className="w-full h-full" />
           </div>
@@ -762,7 +768,6 @@ export default function RoomPage() {
                   <p className="text-zinc-500 text-sm">Invalid video. Loading next song...</p>
                 </div>
               ) : isVideoRestricted ? (
-                // ─── Auto-skip: video unavailable/restricted ────────────
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black z-10">
                   <div className="text-3xl animate-pulse">⏭️</div>
                   <p className="text-xs text-zinc-500">Skipping unavailable video...</p>
@@ -775,7 +780,6 @@ export default function RoomPage() {
                   </div>
                 )
               )}
-              {/* Unmute overlay — shown until user clicks */}
               {canPlayCurrentVideo && !isVideoRestricted && isMuted && (
                 <button
                   onClick={(e) => {
@@ -837,7 +841,6 @@ export default function RoomPage() {
             {/* ── Queue tab ── */}
             {activeTab === "queue" && (
               <>
-                {/* Search */}
                 <input
                   placeholder="Search karaoke…"
                   className="w-full bg-black border border-white/10 p-2 rounded text-xs"
@@ -850,7 +853,6 @@ export default function RoomPage() {
                   </p>
                 )}
 
-                {/* Search results */}
                 {searchResults.map((v) => (
                   <div
                     key={v.id.videoId}
@@ -866,7 +868,6 @@ export default function RoomPage() {
                   </div>
                 ))}
 
-                {/* Queue list */}
                 <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
                   {queue.length === 0 && (
                     <p className="text-[10px] text-zinc-600 text-center py-4">
@@ -914,7 +915,6 @@ export default function RoomPage() {
                     No users in room yet.
                   </p>
                 )}
-                {/* Host always first */}
                 {Array.from(users.values())
                   .sort((a, b) => (b.is_host ? 1 : 0) - (a.is_host ? 1 : 0))
                   .map((u) => (
@@ -926,7 +926,6 @@ export default function RoomPage() {
                           : "bg-zinc-800/50"
                       }`}
                     >
-                      {/* Avatar initial */}
                       <div
                         className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
                           u.is_host
@@ -949,7 +948,6 @@ export default function RoomPage() {
                           </p>
                         )}
                       </div>
-                      {/* Online dot */}
                       <span className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
                     </div>
                   ))}

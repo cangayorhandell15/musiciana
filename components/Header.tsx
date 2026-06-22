@@ -163,7 +163,7 @@ export default function Header() {
           {/* JOIN ROOM BUTTON */}
           <button
             onClick={() => { 
-              router.push("/dashboard/joinroom"); 
+              router.push("/join_room"); 
               setIsDropdownOpen(false); 
             }}
             className="w-full text-left px-4 py-2 text-xs font-bold text-white hover:bg-white/5 transition-colors flex items-center gap-2"
