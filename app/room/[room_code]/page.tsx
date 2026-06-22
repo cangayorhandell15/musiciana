@@ -282,30 +282,41 @@ export default function RoomPage() {
 
       let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
+      // I-subscribe ang channel at simulan ang tracking ng realtime user features
       await channel.subscribe(async (status) => {
-  console.log("[subscribe] status:", status); // ← dagdag ito
-  if (status === "SUBSCRIBED" && user) {
-    console.log("[subscribe] user found, tracking presence..."); // ← at ito
-    await channel.track({ ... });
-    
-    const upsertPresence = async () => {
-      const { error } = await supabase.from("room_presence").upsert({
-        room_code: roomCode,
-        user_id: user.id,
-        last_seen_at: new Date().toISOString(),
-      });
-      if (error) {
-        console.error("[heartbeat] failed:", error.message);
-      } else {
-        console.log("[heartbeat] success:", roomCode);
-      }
-    };
+        console.log("[subscribe] status:", status);
+        
+        if (status === "SUBSCRIBED" && user) {
+          console.log("[subscribe] user found, tracking presence...");
+          
+          // 1. Dito natin ipapasa ang totoong data para sa Presence Tracking!
+          await channel.track({
+            user_id: user.id,
+            email: user.email || "",
+            display_name: user.user_metadata?.display_name || user.email?.split("@")[0] || "Guest",
+            is_host: user.id === roomData.host_id,
+          });
+          
+          // 2. Heartbeat logic para sa database room_presence table
+          const upsertPresence = async () => {
+            const { error } = await supabase.from("room_presence").upsert({
+              room_code: roomCode,
+              user_id: user.id,
+              last_seen_at: new Date().toISOString(),
+            });
+            if (error) {
+              console.error("[heartbeat] failed:", error.message);
+            } else {
+              console.log("[heartbeat] success for room:", roomCode);
+            }
+          };
 
-    await upsertPresence();
-    heartbeatInterval = setInterval(upsertPresence, 30000);
-    heartbeatIntervalRef.current = heartbeatInterval;
-  }
-});
+          // Patakbuhin agad pagkasok, at ulitin kada 30 segundo
+          await upsertPresence();
+          heartbeatInterval = setInterval(upsertPresence, 30000);
+          heartbeatIntervalRef.current = heartbeatInterval;
+        }
+      });
           // Upsert presence sa DB para malaman ng cron na may tao sa room
           const upsertPresence = async () => {
             await supabase.from("room_presence").upsert({
