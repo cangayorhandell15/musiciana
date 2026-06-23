@@ -115,6 +115,7 @@ export default function RoomPage() {
   const onPlayerErrorRef = useRef<() => void>(() => {});
   const [recommendations, setRecommendations] = useState<{ title: string; artist: string }[]>([]);
   const [isFetchingRecs, setIsFetchingRecs] = useState(false);
+  const [isAddingRec, setIsAddingRec] = useState(false); // ANTI-TADTAD GUARD STATE
 
   useEffect(() => {
     if (!roomCode) return;
@@ -321,7 +322,6 @@ export default function RoomPage() {
     };
   }, [roomCode, supabase, router]);
 
-  // NATIVE FETCH: Kumakausap sa sarili mong /api/recommendations backend route nang malinis
   const fetchRecommendations = useCallback(async () => {
     setIsFetchingRecs(true);
     try {
@@ -358,6 +358,9 @@ export default function RoomPage() {
   }, [activeTab, isHost, recommendations.length, fetchRecommendations]);
 
   const addRecommendedToQueue = async (rec: { title: string; artist: string }) => {
+    if (isAddingRec) return; // ANTI-TADTAD LOCK
+
+    setIsAddingRec(true);
     setIsLoading(true);
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(rec.title + " " + rec.artist + " karaoke")}`);
@@ -369,6 +372,7 @@ export default function RoomPage() {
       console.error("[rec-add] failed:", e);
     }
     setIsLoading(false);
+    setIsAddingRec(false); // RELEASE LOCK
   };
 
   useEffect(() => {
@@ -896,8 +900,12 @@ export default function RoomPage() {
                       {recommendations.map((rec, i) => (
                         <div
                           key={i}
-                          onClick={() => addRecommendedToQueue(rec)}
-                          className="flex items-center gap-2 p-2 bg-pink-500/5 border border-pink-500/20 hover:bg-pink-500/15 cursor-pointer rounded transition-colors"
+                          onClick={() => !isAddingRec && addRecommendedToQueue(rec)}
+                          className={`flex items-center gap-2 p-2 bg-pink-500/5 border border-pink-500/20 rounded transition-colors ${
+                            isAddingRec 
+                              ? "cursor-not-allowed opacity-50" 
+                              : "hover:bg-pink-500/15 cursor-pointer"
+                          }`}
                         >
                           <div className="w-7 h-7 rounded bg-zinc-800 flex items-center justify-center text-xs flex-shrink-0">
                             🎵
@@ -906,7 +914,9 @@ export default function RoomPage() {
                             <p className="text-[10px] text-zinc-200 truncate">{rec.title}</p>
                             <p className="text-[9px] text-zinc-500">{rec.artist}</p>
                           </div>
-                          <span className="text-pink-400 text-sm flex-shrink-0">+</span>
+                          <span className="text-pink-400 text-xs font-bold flex-shrink-0 min-w-[14px] text-center">
+                            {isAddingRec ? "⏳" : "+"}
+                          </span>
                         </div>
                       ))}
                     </div>
