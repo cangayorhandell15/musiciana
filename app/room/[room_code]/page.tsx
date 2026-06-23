@@ -114,6 +114,8 @@ export default function RoomPage() {
   // never call stale closures.
   const onPlayerEndedRef = useRef<() => void>(() => {});
   const onPlayerErrorRef = useRef<() => void>(() => {});
+  const [recommendations, setRecommendations] = useState<{ title: string; artist: string }[]>([]);
+  const [isFetchingRecs, setIsFetchingRecs] = useState(false);
 
   useEffect(() => {
     if (!roomCode) return;
@@ -331,7 +333,60 @@ export default function RoomPage() {
       }
     };
   }, [roomCode, supabase, router]);
+const fetchRecommendations = useCallback(async () => {
+  setIsFetchingRecs(true);
+  try {
+    const context = [
+      room?.current_video_id ? `Currently playing: ${queue[0]?.title ?? "unknown"}` : null,
+      queue.length > 0 ? `Queue: ${queue.map(s => s.title).join(", ")}` : null,
+    ]
+      .filter(Boolean)
+      .join(". ");
 
+    const prompt = context
+      ? `Given this karaoke session context — ${context} — suggest 4 karaoke songs that would fit well. Reply ONLY with a JSON array of objects like [{"title":"Song Name","artist":"Artist"}]. No explanation.`
+      : `Suggest 4 popular karaoke songs. Reply ONLY with a JSON array of objects like [{"title":"Song Name","artist":"Artist"}]. No explanation.`;
+
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1000,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+
+    const data = await response.json();
+    const text = data.content?.map((b: { type: string; text?: string }) => b.text ?? "").join("") ?? "";
+    const clean = text.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(clean);
+    setRecommendations(parsed);
+  } catch (e) {
+    console.error("[recommendations] failed:", e);
+  }
+  setIsFetchingRecs(false);
+}, [queue, room?.current_video_id]);
+// Auto-fetch recs when queue tab opens or queue changes (host only)
+useEffect(() => {
+  if (activeTab === "queue" && isHost && recommendations.length === 0) {
+    void fetchRecommendations();
+  }
+}, [activeTab, isHost]);
+
+const addRecommendedToQueue = async (rec: { title: string; artist: string }) => {
+  setIsLoading(true);
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(rec.title + " " + rec.artist + " karaoke")}`);
+    const results: YouTubeVideo[] = await res.json();
+    if (results?.[0]) {
+      await addToQueue(results[0]);
+    }
+  } catch (e) {
+    console.error("[rec-add] failed:", e);
+  }
+  setIsLoading(false);
+};
   // ─── Debounced search ──────────────────────────────────────────────────────
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -830,34 +885,75 @@ export default function RoomPage() {
 
           <div className="flex-1 overflow-y-auto">
             {/* ── Queue tab ── */}
-            {activeTab === "queue" && (
-              <>
-                <input
-                  placeholder="Search karaoke…"
-                  className="w-full bg-black border border-white/10 p-2 rounded text-xs"
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  value={searchQuery}
-                />
-                {isLoading && (
-                  <p className="text-[10px] text-zinc-500 mt-2">
-                    Searching…
-                  </p>
-                )}
+{activeTab === "queue" && (
+  <>
+    <input
+      placeholder="Search karaoke…"
+      className="w-full bg-black border border-white/10 p-2 rounded text-xs"
+      onChange={(e) => setSearchQuery(e.target.value)}
+      value={searchQuery}
+    />
+    {isLoading && (
+      <p className="text-[10px] text-zinc-500 mt-2">
+        Searching…
+      </p>
+    )}
 
-                {searchResults.map((v) => (
-                  <div
-                    key={v.id.videoId}
-                    onClick={() => addToQueue(v)}
-                    className="p-2 bg-zinc-800 hover:bg-pink-500/20 cursor-pointer rounded mt-2 flex items-center gap-2"
-                  >
-                    <img
-                      src={v.snippet?.thumbnails?.default?.url || "https://via.placeholder.com/40"}
-                      className="w-8 h-8 rounded"
-                      alt={v.snippet?.title || "Karaoke video"}
-                    />
-                    <p className="text-[10px] truncate">{v.snippet?.title || "Untitled"}</p>
-                  </div>
-                ))}
+    {searchResults.map((v) => (
+      <div
+        key={v.id.videoId}
+        onClick={() => addToQueue(v)}
+        className="p-2 bg-zinc-800 hover:bg-pink-500/20 cursor-pointer rounded mt-2 flex items-center gap-2"
+      >
+        <img
+          src={v.snippet?.thumbnails?.default?.url || "https://via.placeholder.com/40"}
+          className="w-8 h-8 rounded"
+          alt={v.snippet?.title || "Karaoke video"}
+        />
+        <p className="text-[10px] truncate">{v.snippet?.title || "Untitled"}</p>
+      </div>
+    ))}
+
+    {/* DITO MO ILALAGAY YUNG RECOMMENDATIONS CODE MO: */}
+    {isHost && !searchQuery && (
+      <div className="mt-3">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] text-pink-500 font-bold tracking-widest uppercase">
+            ✨ Recommended
+          </p>
+          <button
+            onClick={fetchRecommendations}
+            disabled={isFetchingRecs}
+            className="text-[9px] text-zinc-500 hover:text-zinc-300 disabled:opacity-40"
+          >
+            {isFetchingRecs ? "Loading…" : "↻ Refresh"}
+          </button>
+        </div>
+
+        {isFetchingRecs && recommendations.length === 0 && (
+          <p className="text-[10px] text-zinc-600 text-center py-2">Getting suggestions…</p>
+        )}
+
+        <div className="flex flex-col gap-1.5">
+          {recommendations.map((rec, i) => (
+            <div
+              key={i}
+              onClick={() => addRecommendedToQueue(rec)}
+              className="flex items-center gap-2 p-2 bg-pink-500/5 border border-pink-500/20 hover:bg-pink-500/15 cursor-pointer rounded transition-colors"
+            >
+              <div className="w-7 h-7 rounded bg-zinc-800 flex items-center justify-center text-xs flex-shrink-0">
+                🎵
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-zinc-200 truncate">{rec.title}</p>
+                <p className="text-[9px] text-zinc-500">{rec.artist}</p>
+              </div>
+              <span className="text-pink-400 text-sm flex-shrink-0">+</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
 
                 <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
                   {queue.length === 0 && (
