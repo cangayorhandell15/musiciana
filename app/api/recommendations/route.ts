@@ -1,39 +1,41 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-export async function POST(request: Request) {
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export async function POST() {
   try {
-    // Kuhain ang context na pinasa mula sa frontend (page.tsx)
-    const { context } = await request.json();
+    // Kukuha ng hanggang 30 na kanta mula sa database cache mo
+    const { data: cachedSongs, error } = await supabase
+      .from('songs')
+      .select('title')
+      .limit(30);
 
-    // Buuin ang prompt depende kung may kasalukuyang kanta o queue
-    const prompt = context
-      ? `Given this karaoke session context — ${context} — suggest 4 karaoke songs that would fit well. Reply ONLY with a JSON array of objects like [{"title":"Song Name","artist":"Artist"}]. No explanation.`
-      : `Suggest 4 popular karaoke songs. Reply ONLY with a JSON array of objects like [{"title":"Song Name","artist":"Artist"}]. No explanation.`;
+    // Kung nag-error o walang laman ang database, magbalik ng empty array sa page.tsx
+    if (error || !cachedSongs || cachedSongs.length === 0) {
+      return NextResponse.json({
+        content: [{ type: "text", text: JSON.stringify([]) }]
+      });
+    }
 
-    // Native fetch gamit ang URL at headers na tinatanggap ng Anthropic API
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY || "", 
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-3-5-sonnet-20241022",
-        max_tokens: 1000,
-        messages: [{ role: "user", content: prompt }],
-      }),
+    // I-shuffle ang mga kanta mula sa DB at kumuha ng 4
+    const shuffled = cachedSongs.sort(() => 0.5 - Math.random()).slice(0, 4);
+    
+    // Ibalik ang buong orihinal na pamagat para mahanap ulit nang tumpak sa YouTube search
+    const formattedSongs = shuffled.map(song => ({
+      title: song.title, // Buong pamagat na galing mismo sa YouTube dati
+      artist: ""         // Iwanang blanko dahil kasama na sa title ang detalye
+    }));
+
+    return NextResponse.json({
+      content: [{ type: "text", text: JSON.stringify(formattedSongs) }]
     });
 
-    if (!response.ok) throw new Error(`Anthropic API failed with status ${response.status}`);
-
-    const data = await response.json();
-    
-    // Ibalik ang nakuha nating data pabalik sa iyong page.tsx
-    return NextResponse.json(data);
-
   } catch (error) {
-    console.error("API Error:", error);
+    console.error("Recommendations API Error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
