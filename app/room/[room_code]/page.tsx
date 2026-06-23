@@ -110,8 +110,7 @@ export default function RoomPage() {
   const ytApiReadyRef = useRef(false);
   const emptyRoomTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Always-current callback refs so the YT event handlers (set up once)
-  // never call stale closures.
+  
   const onPlayerEndedRef = useRef<() => void>(() => {});
   const onPlayerErrorRef = useRef<() => void>(() => {});
   const [recommendations, setRecommendations] = useState<{ title: string; artist: string }[]>([]);
@@ -152,14 +151,12 @@ export default function RoomPage() {
       }
       if (queueData) setQueue(queueData);
 
-      // ─── Realtime channel (queue + room + presence) ──────────────────────
       const channel = supabase.channel(`room:${roomCode}`, {
         config: { presence: { key: user?.id ?? "anon" } },
       });
 
       activeChannel = channel;
 
-      // Queue: INSERT
       channel.on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "queue", filter: `room_code=eq.${roomCode}` },
@@ -172,7 +169,6 @@ export default function RoomPage() {
         }
       );
 
-      // Queue: DELETE
       channel.on(
         "postgres_changes",
         { event: "DELETE", schema: "public", table: "queue", filter: `room_code=eq.${roomCode}` },
@@ -182,7 +178,6 @@ export default function RoomPage() {
         }
       );
 
-      // Room: UPDATE (host changed current video)
       channel.on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "rooms", filter: `room_code=eq.${roomCode}` },
@@ -199,7 +194,6 @@ export default function RoomPage() {
         }
       );
 
-      // Room: DELETE
       channel.on(
         "postgres_changes",
         { event: "DELETE", schema: "public", table: "rooms", filter: `room_code=eq.${roomCode}` },
@@ -208,7 +202,6 @@ export default function RoomPage() {
         }
       );
 
-      // Presence: sync
       channel.on("presence", { event: "sync" }, () => {
         const state = channel.presenceState<{
           user_id: string;
@@ -223,7 +216,6 @@ export default function RoomPage() {
         });
         setUsers(map);
 
-        // Auto-delete kung walang tao sa room
         const totalUsers = Object.values(state).flat().length;
         if (totalUsers === 0) {
           if (!emptyRoomTimerRef.current) {
@@ -253,7 +245,6 @@ export default function RoomPage() {
         }
       });
 
-      // Presence: join
       channel.on("presence", { event: "join" }, ({ newPresences }) => {
         setUsers((prev) => {
           const next = new Map(prev);
@@ -265,7 +256,6 @@ export default function RoomPage() {
         });
       });
 
-      // Presence: leave
       channel.on("presence", { event: "leave" }, ({ leftPresences }) => {
         setUsers((prev) => {
           const next = new Map(prev);
@@ -277,7 +267,6 @@ export default function RoomPage() {
         });
       });
 
-      // Simulan ang subscription
       channel.subscribe(async (status) => {
         console.log("[subscribe] status:", status);
         
@@ -310,10 +299,8 @@ export default function RoomPage() {
       });
     };
 
-    // Patakbuhin ang async data fetch handler
     fetchData();
 
-    // ANG TAHANAN NG CLEANUP: Nandito dapat sa pinakailalim ng useEffect scope, hinding-hindi sa loob ng fetchData!
     return () => {
       isMounted = false;
       if (heartbeatIntervalRef.current) {
@@ -333,61 +320,57 @@ export default function RoomPage() {
       }
     };
   }, [roomCode, supabase, router]);
-const fetchRecommendations = useCallback(async () => {
-  setIsFetchingRecs(true);
-  try {
-    const context = [
-      room?.current_video_id ? `Currently playing: ${queue[0]?.title ?? "unknown"}` : null,
-      queue.length > 0 ? `Queue: ${queue.map(s => s.title).join(", ")}` : null,
-    ]
-      .filter(Boolean)
-      .join(". ");
 
-    const prompt = context
-      ? `Given this karaoke session context — ${context} — suggest 4 karaoke songs that would fit well. Reply ONLY with a JSON array of objects like [{"title":"Song Name","artist":"Artist"}]. No explanation.`
-      : `Suggest 4 popular karaoke songs. Reply ONLY with a JSON array of objects like [{"title":"Song Name","artist":"Artist"}]. No explanation.`;
+  // NATIVE FETCH: Kumakausap sa sarili mong /api/recommendations backend route nang malinis
+  const fetchRecommendations = useCallback(async () => {
+    setIsFetchingRecs(true);
+    try {
+      const context = [
+        room?.current_video_id ? `Currently playing: ${queue[0]?.title ?? "unknown"}` : null,
+        queue.length > 0 ? `Queue: ${queue.map(s => s.title).join(", ")}` : null,
+      ]
+        .filter(Boolean)
+        .join(". ");
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1000,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
+      const response = await fetch("/api/recommendations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ context }),
+      });
 
-    const data = await response.json();
-    const text = data.content?.map((b: { type: string; text?: string }) => b.text ?? "").join("") ?? "";
-    const clean = text.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean);
-    setRecommendations(parsed);
-  } catch (e) {
-    console.error("[recommendations] failed:", e);
-  }
-  setIsFetchingRecs(false);
-}, [queue, room?.current_video_id]);
-// Auto-fetch recs when queue tab opens or queue changes (host only)
-useEffect(() => {
-  if (activeTab === "queue" && isHost && recommendations.length === 0) {
-    void fetchRecommendations();
-  }
-}, [activeTab, isHost]);
+      if (!response.ok) throw new Error("Failed to fetch recommendations from server");
 
-const addRecommendedToQueue = async (rec: { title: string; artist: string }) => {
-  setIsLoading(true);
-  try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(rec.title + " " + rec.artist + " karaoke")}`);
-    const results: YouTubeVideo[] = await res.json();
-    if (results?.[0]) {
-      await addToQueue(results[0]);
+      const data = await response.json();
+      const text = data.content?.map((b: { type: string; text?: string }) => b.text ?? "").join("") ?? "";
+      const clean = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
+      setRecommendations(parsed);
+    } catch (e) {
+      console.error("[recommendations] failed:", e);
     }
-  } catch (e) {
-    console.error("[rec-add] failed:", e);
-  }
-  setIsLoading(false);
-};
-  // ─── Debounced search ──────────────────────────────────────────────────────
+    setIsFetchingRecs(false);
+  }, [queue, room?.current_video_id]);
+
+  useEffect(() => {
+    if (activeTab === "queue" && isHost && recommendations.length === 0) {
+      void fetchRecommendations();
+    }
+  }, [activeTab, isHost, recommendations.length, fetchRecommendations]);
+
+  const addRecommendedToQueue = async (rec: { title: string; artist: string }) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(rec.title + " " + rec.artist + " karaoke")}`);
+      const results: YouTubeVideo[] = await res.json();
+      if (results?.[0]) {
+        await addToQueue(results[0]);
+      }
+    } catch (e) {
+      console.error("[rec-add] failed:", e);
+    }
+    setIsLoading(false);
+  };
+
   useEffect(() => {
     const timer = setTimeout(async () => {
       if (searchQuery.length > 2) {
@@ -409,7 +392,6 @@ const addRecommendedToQueue = async (rec: { title: string; artist: string }) => 
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // ─── Add to queue ──────────────────────────────────────────────────────────
   const addToQueue = async (video: YouTubeVideo) => {
     if (!currentUser) {
       alert("Please log in to add songs.");
@@ -456,12 +438,10 @@ const addRecommendedToQueue = async (rec: { title: string; artist: string }) => 
     }
   };
 
-  // Keep queueRef always current so playNext never reads stale closure
   useEffect(() => {
     queueRef.current = queue;
   }, [queue]);
 
-  // ─── Play next (host only) ─────────────────────────────────────────────────
   const playNext = useCallback(async () => {
     const nextSong = queueRef.current.find(s => !s.id.startsWith("temp-"));
 
@@ -526,7 +506,6 @@ const addRecommendedToQueue = async (rec: { title: string; artist: string }) => 
     };
   }, [isHost, playNext, handlePlayerError]);
 
-  // ─── Load the YouTube IFrame Player API script once ────────────────────
   useEffect(() => {
     if (window.YT && window.YT.Player) {
       ytApiReadyRef.current = true;
@@ -627,10 +606,8 @@ const addRecommendedToQueue = async (rec: { title: string; artist: string }) => 
     return () => {
       if (pollId) window.clearInterval(pollId);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentVideoId, canPlayCurrentVideo, isVideoRestricted]);
+  }, [currentVideoId, canPlayCurrentVideo, isVideoRestricted, isHost, isMuted]);
 
-  // ─── Keep mute state in sync with the live player ──────────────────────
   useEffect(() => {
     if (!ytPlayerRef.current || !isPlayerReady) return;
     try {
@@ -644,7 +621,6 @@ const addRecommendedToQueue = async (rec: { title: string; artist: string }) => 
     }
   }, [isMuted, isPlayerReady]);
 
-  // ─── Tear down the player fully on unmount ─────────────────────────────
   useEffect(() => {
     return () => {
       if (ytPlayerRef.current) {
@@ -658,7 +634,6 @@ const addRecommendedToQueue = async (rec: { title: string; artist: string }) => 
     };
   }, []);
 
-  // ─── Detect stuck/restricted videos with timeout (once per video) ─────────────
   useEffect(() => {
     if (!currentVideoId || isVideoRestricted) {
       testedVideoRef.current = null;
@@ -689,7 +664,6 @@ const addRecommendedToQueue = async (rec: { title: string; artist: string }) => 
     return () => clearTimeout(timeoutId);
   }, [currentVideoId, isVideoRestricted]);
 
-  // ─── Auto-skip restricted videos ──────────────────────────────────────────────
   useEffect(() => {
     if (!isVideoRestricted || !isHost) return;
 
@@ -730,7 +704,6 @@ const addRecommendedToQueue = async (rec: { title: string; artist: string }) => 
     return () => window.clearTimeout(timer);
   }, [isHost, playNext, queue, room?.current_video_id]);
 
-  // ─── Remove from queue (host only) ────────────────────────────────────────
   const removeFromQueue = async (id: string) => {
     setQueue((prev) => prev.filter((s) => s.id !== id));
     const { error } = await supabase.from("queue").delete().eq("id", id);
@@ -745,64 +718,52 @@ const addRecommendedToQueue = async (rec: { title: string; artist: string }) => 
     }
   };
 
-  // ─── Leave room ────────────────────────────────────────────────────────────
   const leaveRoom = () => {
     router.push("/dashboard");
   };
 
-  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <main className="min-h-screen bg-[#050505] text-white p-6">
-    {/* Header */}
-<header className="grid grid-cols-3 items-center pb-6 border-b border-white/10 mb-8 w-full">
-  
-  {/* KALIWA: QR Code at Room Code Info */}
-  <div className="flex items-center gap-6 justify-self-start">
-    <QRCodeSVG
-      value={`https://musiciana.vercel.app/room/${roomCode}`}
-      size={50}
-    />
-    <div>
-      <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
-        Room Code
-      </p>
-      <h1 className="text-xl font-black text-pink-500">{roomCode}</h1>
-    </div>
-  </div>
+      <header className="grid grid-cols-3 items-center pb-6 border-b border-white/10 mb-8 w-full">
+        <div className="flex items-center gap-6 justify-self-start">
+          <QRCodeSVG
+            value={`https://musiciana.vercel.app/room/${roomCode}`}
+            size={50}
+          />
+          <div>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
+              Room Code
+            </p>
+            <h1 className="text-xl font-black text-pink-500">{roomCode}</h1>
+          </div>
+        </div>
 
-  {/* GITNA: Main System Title (MUSICIANA) */}
-  <div className="text-center justify-self-center">
-    <h1 className="text-3xl font-black text-white tracking-[0.2em] uppercase">
-      MUSICIANA
-    </h1>
-  </div>
+        <div className="text-center justify-self-center">
+          <h1 className="text-3xl font-black text-white tracking-[0.2em] uppercase">
+            MUSICIANA
+          </h1>
+        </div>
 
-  {/* KANAN: Mga Buttons / Actions */}
-  <div className="flex items-center gap-3 justify-self-end">
-    {isHost && queue.length > 0 && (
-      <button
-        onClick={playNext}
-        className="text-xs font-bold text-green-400 hover:bg-green-500/10 px-4 py-2 rounded-lg border border-green-500/20"
-      >
-        ▶ PLAY NEXT
-      </button>
-    )}
-    <button
-      onClick={leaveRoom}
-      className="text-xs font-bold text-red-400 hover:bg-red-500/10 px-4 py-2 rounded-lg"
-    >
-      LEAVE ROOM 🚪
-    </button>
-  </div>
+        <div className="flex items-center gap-3 justify-self-end">
+          {isHost && queue.length > 0 && (
+            <button
+              onClick={playNext}
+              className="text-xs font-bold text-green-400 hover:bg-green-500/10 px-4 py-2 rounded-lg border border-green-500/20"
+            >
+              ▶ PLAY NEXT
+            </button>
+          )}
+          <button
+            onClick={leaveRoom}
+            className="text-xs font-bold text-red-400 hover:bg-red-500/10 px-4 py-2 rounded-lg"
+          >
+            LEAVE ROOM 🚪
+          </button>
+        </div>
+      </header>
 
-</header>
-
-      {/* Main layout */}
       <div className="grid md:grid-cols-3 gap-8">
-        {/* Video player */}
-        <div
-          className="md:col-span-2 h-[500px] bg-black rounded-2xl border border-white/5 overflow-hidden flex items-center justify-center relative"
-        >
+        <div className="md:col-span-2 h-[500px] bg-black rounded-2xl border border-white/5 overflow-hidden flex items-center justify-center relative">
           <div className="w-full h-full">
             <div ref={ytContainerRef} className="w-full h-full" />
           </div>
@@ -851,9 +812,7 @@ const addRecommendedToQueue = async (rec: { title: string; artist: string }) => 
           )}
         </div>
 
-        {/* Sidebar */}
         <div className="bg-zinc-900/30 rounded-2xl border border-white/5 p-4 h-[500px] flex flex-col">
-          {/* Tabs */}
           <div className="flex gap-4 mb-4 border-b border-white/5">
             <button
               onClick={() => setActiveTab("queue")}
@@ -884,76 +843,75 @@ const addRecommendedToQueue = async (rec: { title: string; artist: string }) => 
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {/* ── Queue tab ── */}
-{activeTab === "queue" && (
-  <>
-    <input
-      placeholder="Search karaoke…"
-      className="w-full bg-black border border-white/10 p-2 rounded text-xs"
-      onChange={(e) => setSearchQuery(e.target.value)}
-      value={searchQuery}
-    />
-    {isLoading && (
-      <p className="text-[10px] text-zinc-500 mt-2">
-        Searching…
-      </p>
-    )}
+            {activeTab === "queue" && (
+              <>
+                <input
+                  placeholder="Search karaoke…"
+                  className="w-full bg-black border border-white/10 p-2 rounded text-xs"
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={searchQuery}
+                />
+                {isLoading && (
+                  <p className="text-[10px] text-zinc-500 mt-2">
+                    Searching…
+                  </p>
+                )}
 
-    {searchResults.map((v) => (
-      <div
-        key={v.id.videoId}
-        onClick={() => addToQueue(v)}
-        className="p-2 bg-zinc-800 hover:bg-pink-500/20 cursor-pointer rounded mt-2 flex items-center gap-2"
-      >
-        <img
-          src={v.snippet?.thumbnails?.default?.url || "https://via.placeholder.com/40"}
-          className="w-8 h-8 rounded"
-          alt={v.snippet?.title || "Karaoke video"}
-        />
-        <p className="text-[10px] truncate">{v.snippet?.title || "Untitled"}</p>
-      </div>
-    ))}
+                {searchResults.map((v) => (
+                  <div
+                    key={v.id.videoId}
+                    onClick={() => addToQueue(v)}
+                    className="p-2 bg-zinc-800 hover:bg-pink-500/20 cursor-pointer rounded mt-2 flex items-center gap-2"
+                  >
+                    <img
+                      src={v.snippet?.thumbnails?.default?.url || "https://via.placeholder.com/40"}
+                      className="w-8 h-8 rounded"
+                      alt={v.snippet?.title || "Karaoke video"}
+                    />
+                    <p className="text-[10px] truncate">{v.snippet?.title || "Untitled"}</p>
+                  </div>
+                ))}
 
-    {/* DITO MO ILALAGAY YUNG RECOMMENDATIONS CODE MO: */}
-    {isHost && !searchQuery && (
-      <div className="mt-3">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] text-pink-500 font-bold tracking-widest uppercase">
-            ✨ Recommended
-          </p>
-          <button
-            onClick={fetchRecommendations}
-            disabled={isFetchingRecs}
-            className="text-[9px] text-zinc-500 hover:text-zinc-300 disabled:opacity-40"
-          >
-            {isFetchingRecs ? "Loading…" : "↻ Refresh"}
-          </button>
-        </div>
+                {/* Recommendations Section */}
+                {isHost && !searchQuery && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[10px] text-pink-500 font-bold tracking-widest uppercase">
+                        ✨ Recommended
+                      </p>
+                      <button
+                        onClick={fetchRecommendations}
+                        disabled={isFetchingRecs}
+                        className="text-[9px] text-zinc-500 hover:text-zinc-300 disabled:opacity-40"
+                      >
+                        {isFetchingRecs ? "Loading…" : "↻ Refresh"}
+                      </button>
+                    </div>
 
-        {isFetchingRecs && recommendations.length === 0 && (
-          <p className="text-[10px] text-zinc-600 text-center py-2">Getting suggestions…</p>
-        )}
+                    {isFetchingRecs && recommendations.length === 0 && (
+                      <p className="text-[10px] text-zinc-600 text-center py-2">Getting suggestions…</p>
+                    )}
 
-        <div className="flex flex-col gap-1.5">
-          {recommendations.map((rec, i) => (
-            <div
-              key={i}
-              onClick={() => addRecommendedToQueue(rec)}
-              className="flex items-center gap-2 p-2 bg-pink-500/5 border border-pink-500/20 hover:bg-pink-500/15 cursor-pointer rounded transition-colors"
-            >
-              <div className="w-7 h-7 rounded bg-zinc-800 flex items-center justify-center text-xs flex-shrink-0">
-                🎵
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-zinc-200 truncate">{rec.title}</p>
-                <p className="text-[9px] text-zinc-500">{rec.artist}</p>
-              </div>
-              <span className="text-pink-400 text-sm flex-shrink-0">+</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
+                    <div className="flex flex-col gap-1.5">
+                      {recommendations.map((rec, i) => (
+                        <div
+                          key={i}
+                          onClick={() => addRecommendedToQueue(rec)}
+                          className="flex items-center gap-2 p-2 bg-pink-500/5 border border-pink-500/20 hover:bg-pink-500/15 cursor-pointer rounded transition-colors"
+                        >
+                          <div className="w-7 h-7 rounded bg-zinc-800 flex items-center justify-center text-xs flex-shrink-0">
+                            🎵
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] text-zinc-200 truncate">{rec.title}</p>
+                            <p className="text-[9px] text-zinc-500">{rec.artist}</p>
+                          </div>
+                          <span className="text-pink-400 text-sm flex-shrink-0">+</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-4 pt-4 border-t border-white/5 space-y-2">
                   {queue.length === 0 && (
@@ -994,7 +952,6 @@ const addRecommendedToQueue = async (rec: { title: string; artist: string }) => 
               </>
             )}
 
-            {/* ── Users tab ── */}
             {activeTab === "users" && (
               <div className="space-y-2 pt-1">
                 {users.size === 0 && (
