@@ -730,56 +730,53 @@ export default function RoomPage() {
 
   return (
     <main className="min-h-screen bg-[#050505] text-white p-6">
-<header className="flex flex-col items-center gap-4 pb-6 border-b border-white/10 mb-8 w-full md:grid md:grid-cols-3">
-  
-  {/* Row 1 sa mobile / Left col sa desktop */}
-  <div className="flex items-center gap-6 justify-center md:justify-self-start">
-    {/* QR Code na Pwede nang I-click */}
-    <div 
+<header className="flex items-center justify-between gap-3 pb-4 border-b border-white/10 mb-6 w-full">
+
+  {/* LEFT — QR + Room Code */}
+  <div className="flex items-center gap-3 min-w-0">
+    <div
       onClick={() => setIsQrOpen(true)}
-      className="cursor-pointer p-1.5 bg-white rounded-lg hover:scale-105 active:scale-95 transition-transform duration-200 shadow-lg shadow-pink-500/5 group relative"
+      className="cursor-pointer p-1 bg-white rounded-md hover:scale-105 active:scale-95 transition-transform flex-shrink-0 group relative"
       title="Click to enlarge"
     >
-      <QRCodeSVG
-        value={`https://musiciana.vercel.app/room/${roomCode}`}
-        size={50}
-      />
-      {/* Munting Indicator Overlay */}
-      <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        <span className="text-[10px] text-white font-bold">🔍</span>
+      <QRCodeSVG value={`https://musiciana.vercel.app/room/${roomCode}`} size={36} />
+      <div className="absolute inset-0 bg-black/40 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+        <span className="text-[9px] text-white font-bold">🔍</span>
       </div>
     </div>
-
-    <div>
-      <p className="text-[10px] text-zinc-500 uppercase tracking-widest">
-        Room Code
-      </p>
-      <h1 className="text-xl font-black text-pink-500">{roomCode}</h1>
+    <div className="min-w-0">
+      <p className="text-[9px] text-zinc-500 uppercase tracking-widest leading-none mb-0.5">Room Code</p>
+      <button
+        onClick={() => navigator.clipboard.writeText(roomCode)}
+        className="flex items-center gap-1.5 group"
+        title="Copy code"
+      >
+        <span className="text-base font-black text-pink-500 tracking-wider">{roomCode}</span>
+        <span className="text-zinc-600 group-hover:text-zinc-300 transition-colors text-xs">⎘</span>
+      </button>
     </div>
   </div>
 
-  {/* Row 2 sa mobile / Center col sa desktop */}
-  <div className="text-center md:justify-self-center">
-    <h1 className="text-2xl md:text-3xl font-black text-white tracking-[0.2em] uppercase">
-      MUSICIANA
-    </h1>
-  </div>
+  {/* CENTER — Brand */}
+  <h1 className="text-lg md:text-xl font-black text-white tracking-[0.2em] uppercase flex-shrink-0">
+    MUSICIANA
+  </h1>
 
-  {/* Row 3 sa mobile / Right col sa desktop */}
-  <div className="flex items-center gap-3 justify-center md:justify-self-end">
+  {/* RIGHT — Actions */}
+  <div className="flex items-center gap-2 flex-shrink-0">
     {isHost && queue.length > 0 && (
       <button
         onClick={playNext}
-        className="text-xs font-bold text-green-400 hover:bg-green-500/10 px-4 py-2 rounded-lg border border-green-500/20"
+        className="text-[11px] font-bold text-green-400 hover:bg-green-500/10 px-3 py-1.5 rounded-lg border border-green-500/20 transition-colors"
       >
-        ▶ PLAY NEXT
+        ▶ Next
       </button>
     )}
     <button
       onClick={leaveRoom}
-      className="text-xs font-bold text-red-400 hover:bg-red-500/10 px-4 py-2 rounded-lg"
+      className="text-[11px] font-bold text-red-400 hover:bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 transition-colors"
     >
-      LEAVE ROOM 🚪
+      Leave 🚪
     </button>
   </div>
 
