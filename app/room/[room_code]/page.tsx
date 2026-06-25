@@ -109,6 +109,18 @@ export default function RoomPage() {
   const shouldPlay = Boolean(canPlayCurrentVideo);
   const isVideoRestricted = restrictedVideoIds.has(currentVideoId);
   const [isQrOpen, setIsQrOpen] = useState(false);
+  const [qrSize, setQrSize] = useState(240);
+
+  useEffect(() => {
+    const updateQrSize = () => {
+      const width = window.innerWidth || 320;
+      setQrSize(Math.min(240, Math.max(160, Math.floor(width * 0.65))));
+    };
+
+    updateQrSize();
+    window.addEventListener("resize", updateQrSize);
+    return () => window.removeEventListener("resize", updateQrSize);
+  }, []);
 
   // ─── YouTube IFrame Player API refs ─────────────────────────────────────
   const ytContainerRef = useRef<HTMLDivElement | null>(null);
@@ -400,6 +412,40 @@ export default function RoomPage() {
       }
     };
   }, [roomCode, supabase, router]);
+
+  useEffect(() => {
+    setIsHost(currentUser?.id === room?.host_id);
+  }, [currentUser?.id, room?.host_id]);
+
+  useEffect(() => {
+    setCurrentTrackTitle("");
+  }, [currentVideoId]);
+
+  useEffect(() => {
+    if (!currentVideoId || currentTrackTitle || isVideoRestricted) return;
+
+    let canceled = false;
+    const fetchTitle = async () => {
+      try {
+        const response = await fetch(
+          `https://noembed.com/embed?url=https://www.youtube.com/watch?v=${encodeURIComponent(currentVideoId)}`
+        );
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!canceled && data?.title) {
+          setCurrentTrackTitle(data.title);
+        }
+      } catch (error) {
+        console.warn("[current-track] title fetch failed:", error);
+      }
+    };
+
+    void fetchTitle();
+
+    return () => {
+      canceled = true;
+    };
+  }, [currentVideoId, currentTrackTitle, isVideoRestricted]);
 
   const fetchRecommendations = useCallback(async () => {
     setIsFetchingRecs(true);
@@ -931,8 +977,8 @@ export default function RoomPage() {
           <p className="text-xs text-zinc-400 mt-1">Scan the QR code below to jump in</p>
         </div>
 
-        <div className="bg-white p-4 rounded-xl shadow-inner">
-          <QRCodeSVG value={roomUrl} size={240} />
+        <div className="bg-white p-3 rounded-xl shadow-inner w-full max-w-[min(240px,100%)]">
+          <QRCodeSVG value={roomUrl} size={qrSize} />
         </div>
 
         <div className="bg-zinc-900 border border-white/5 px-6 py-3 rounded-xl w-full">
