@@ -175,6 +175,7 @@ export default function RoomPage() {
         });
         return next;
       });
+      setIsPlayerReady(false);
     }
 
     setIsTransferringHost(false);
@@ -613,7 +614,7 @@ export default function RoomPage() {
       setRestrictedVideoIds((prev) => new Set(prev).add(currentVideoId));
     }
 
-    if (isHost) {
+    if (isHost && !isTransferringHost) {
       if (queue.length > 0) {
         void playNext();
       } else {
@@ -623,7 +624,7 @@ export default function RoomPage() {
           .eq("room_code", roomCode);
       }
     }
-  }, [currentVideoId, isHost, playNext, queue.length, roomCode, supabase]);
+  }, [currentVideoId, isHost, isTransferringHost, playNext, queue.length, roomCode, supabase]);
 
   useEffect(() => {
     onPlayerEndedRef.current = () => {
@@ -655,11 +656,14 @@ export default function RoomPage() {
 
   useEffect(() => {
     onPlayerReadyRef.current = () => {
-      console.log("[player-ready] Video loaded successfully:", currentVideoId);
-      setIsPlayerReady(true);
-      testedVideoRef.current = null;
+      if (!isTransferringHost) {
+        console.log("[player-ready] Video loaded successfully:", currentVideoId);
+        setIsPlayerReady(true);
+        testedVideoRef.current = null;
+      }
     };
     onPlayerStateChangeRef.current = (state: number) => {
+      if (isTransferringHost) return;
       console.log("[player-state-change]", currentVideoId, "state:", state);
       if (state === window.YT.PlayerState.ENDED) {
         onPlayerEndedRef.current();
@@ -671,7 +675,7 @@ export default function RoomPage() {
         testedVideoRef.current = null;
       }
     };
-  }, [currentVideoId]);
+  }, [currentVideoId, isTransferringHost]);
 
   useEffect(() => {
     if (!canPlayCurrentVideo || isVideoRestricted || !currentVideoId) return;
@@ -943,29 +947,12 @@ export default function RoomPage() {
 
     </div> {/* SARA NG FIRST ROW */}
 
-    {/* NOW PLAYING & SECONDARY ROOM CODE ROW */}
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 w-full">
-      <div className="flex-1 rounded-2xl border border-white/10 bg-zinc-900/70 p-4">
-        <p className="text-[9px] uppercase tracking-[0.3em] text-zinc-500 mb-1">Now playing</p>
-        <p className="text-sm md:text-base font-bold text-white truncate">
-          {currentTrackTitle || (currentVideoId ? "Loading current track…" : "No song is playing")}
-        </p>
-      </div>
-      <div className="flex-1 rounded-2xl border border-white/10 bg-zinc-900/70 p-4">
-        <p className="text-[9px] uppercase tracking-[0.3em] text-zinc-500 mb-1">Room Code</p>
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-sm md:text-base font-black text-pink-500 tracking-wider font-mono truncate">
-            {roomCode}
-          </span>
-          <button
-            onClick={() => navigator.clipboard.writeText(roomCode)}
-            className="text-zinc-400 hover:text-white text-xs transition-colors"
-            title="Copy code"
-          >
-            ⎘
-          </button>
-        </div>
-      </div>
+    {/* NOW PLAYING ROW */}
+    <div className="flex-1 rounded-2xl border border-white/10 bg-zinc-900/70 p-4">
+      <p className="text-[9px] uppercase tracking-[0.3em] text-zinc-500 mb-1">Now playing</p>
+      <p className="text-sm md:text-base font-bold text-white truncate">
+        {currentTrackTitle || (currentVideoId ? "Loading current track…" : "No song is playing")}
+      </p>
     </div>
 
   </div> {/* SARA NG MAIN HEADER CONTAINER */}
@@ -992,7 +979,7 @@ export default function RoomPage() {
           <p className="text-xs text-zinc-400 mt-1">Scan the QR code below to jump in</p>
         </div>
 
-        <div className="bg-white p-3 rounded-xl shadow-inner w-full max-w-[min(240px,100%)]">
+        <div className="bg-white p-3 rounded-xl shadow-inner flex justify-center">
           <QRCodeSVG value={roomUrl} size={qrSize} />
         </div>
 
