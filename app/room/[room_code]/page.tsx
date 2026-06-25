@@ -99,6 +99,7 @@ export default function RoomPage() {
   const [isMuted, setIsMuted] = useState(true);
   const [badVideoIds, setBadVideoIds] = useState<Set<string>>(new Set());
   const [restrictedVideoIds, setRestrictedVideoIds] = useState<Set<string>>(new Set());
+  const [isTransferringHost, setIsTransferringHost] = useState(false);
   const supabase = useMemo(() => createClient(), []);
   const queueRef = useRef<QueueEntry[]>([]);
   const testedVideoRef = useRef<string | null>(null);
@@ -133,6 +134,33 @@ export default function RoomPage() {
       setQueue(data);
     }
   }, [roomCode, supabase]);
+
+  const transferHost = useCallback(async (newHostId: string) => {
+    if (!roomCode || !room?.host_id || room.host_id === newHostId) return;
+    setIsTransferringHost(true);
+
+    const { error } = await supabase
+      .from("rooms")
+      .update({ host_id: newHostId })
+      .eq("room_code", roomCode)
+      .eq("host_id", room.host_id);
+
+    if (error) {
+      console.error("Host transfer failed:", error);
+    } else {
+      setRoom((prev) => prev ? { ...prev, host_id: newHostId } : prev);
+      setIsHost(currentUser?.id === newHostId);
+      setUsers((prev) => {
+        const next = new Map(prev);
+        next.forEach((user, id) => {
+          next.set(id, { ...user, is_host: id === newHostId });
+        });
+        return next;
+      });
+    }
+
+    setIsTransferringHost(false);
+  }, [roomCode, room?.host_id, supabase, currentUser?.id]);
 
   useEffect(() => {
     if (!roomCode) return;
@@ -297,10 +325,21 @@ export default function RoomPage() {
       channel.on("presence", { event: "leave" }, ({ leftPresences }) => {
         setUsers((prev) => {
           const next = new Map(prev);
+          let hostLeft = false;
+
           leftPresences.forEach((p) => {
             const presence = p as unknown as PresenceUser;
+            if (presence.is_host) {
+              hostLeft = true;
+            }
             next.delete(presence.user_id);
           });
+
+          if (hostLeft && next.size > 0) {
+            const nextHost = Array.from(next.values())[0];
+            void transferHost(nextHost.user_id);
+          }
+
           return next;
         });
       });
@@ -768,7 +807,13 @@ export default function RoomPage() {
     }
   };
 
-  const leaveRoom = () => {
+  const leaveRoom = async () => {
+    if (isHost && room?.host_id) {
+      const otherUsers = Array.from(users.values()).filter((u) => u.user_id !== currentUser?.id);
+      if (otherUsers.length > 0) {
+        await transferHost(otherUsers[0].user_id);
+      }
+    }
     router.push("/dashboard");
   };
 
@@ -944,29 +989,29 @@ export default function RoomPage() {
               )}
             </div>
           )}
-          <div className="flex gap-4 mb-4 border-b border-white/5">
+          <div className="flex flex-wrap gap-4 mb-4 border-b border-white/5">
             <button
               onClick={() => setActiveTab("queue")}
-              className={`pb-2 text-xs font-bold ${
+              className={`min-w-0 pb-2 text-xs font-bold ${
                 activeTab === "queue" ? "text-pink-500" : "text-zinc-500"
               }`}
             >
-              SONG QUEUE{" "}
+              <span className="truncate inline-block max-w-full">SONG QUEUE</span>
               {queue.length > 0 && (
-                <span className="ml-1 bg-pink-500/20 text-pink-400 px-1.5 py-0.5 rounded-full">
+                <span className="ml-1 inline-block bg-pink-500/20 text-pink-400 px-1.5 py-0.5 rounded-full">
                   {queue.length}
                 </span>
               )}
             </button>
             <button
               onClick={() => setActiveTab("users")}
-              className={`pb-2 text-xs font-bold ${
+              className={`min-w-0 pb-2 text-xs font-bold ${
                 activeTab === "users" ? "text-pink-500" : "text-zinc-500"
               }`}
             >
-              USERS{" "}
+              <span className="truncate inline-block max-w-full">USERS</span>
               {users.size > 0 && (
-                <span className="ml-1 bg-zinc-700 text-zinc-300 px-1.5 py-0.5 rounded-full">
+                <span className="ml-1 inline-block bg-zinc-700 text-zinc-300 px-1.5 py-0.5 rounded-full">
                   {users.size}
                 </span>
               )}
@@ -1129,6 +1174,15 @@ export default function RoomPage() {
                           </p>
                         )}
                       </div>
+                      {isHost && !u.is_host && (
+                        <button
+                          onClick={() => transferHost(u.user_id)}
+                          disabled={isTransferringHost}
+                          className="text-[10px] bg-white/5 border border-white/10 text-white px-2 py-1 rounded-xl hover:bg-white/10 disabled:opacity-50"
+                        >
+                          {isTransferringHost ? "Transferring…" : "Make Host"}
+                        </button>
+                      )}
                       <span className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
                     </div>
                   ))}
