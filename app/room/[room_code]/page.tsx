@@ -730,68 +730,79 @@ export default function RoomPage() {
 
   return (
     <main className="min-h-screen bg-[#050505] text-white p-6">
-<header className="flex items-center justify-between gap-3 pb-4 border-b border-white/10 mb-6 w-full">
+<header className="w-full border-b border-white/10 pb-4 mb-6">
+  {/* MAIN HEADER CONTAINER */}
+  <div className="grid grid-cols-2 md:flex md:items-center md:justify-between gap-4 items-center w-full">
+    
+    {/* LEFT/TOP-LEFT — BRAND (Mas magandang unahin ito para sa natural reading hierarchy) */}
+    <h1 className="text-base md:text-xl font-black text-white tracking-[0.2em] uppercase order-1">
+      MUSICIANA
+    </h1>
 
-  {/* LEFT — QR + Room Code */}
-  <div className="flex items-center gap-3 min-w-0">
-    <div
-      onClick={() => setIsQrOpen(true)}
-      className="cursor-pointer p-1 bg-white rounded-md hover:scale-105 active:scale-95 transition-transform flex-shrink-0 group relative"
-      title="Click to enlarge"
-    >
-      <QRCodeSVG value={`https://musiciana.vercel.app/room/${roomCode}`} size={36} />
-      <div className="absolute inset-0 bg-black/40 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-        <span className="text-[9px] text-white font-bold">🔍</span>
+    {/* RIGHT/TOP-RIGHT — ACTIONS */}
+    <div className="flex items-center justify-end gap-2 order-2 md:order-3 flex-shrink-0">
+      {isHost && queue.length > 0 && (
+        <button
+          onClick={playNext}
+          className="text-[11px] font-bold text-green-400 hover:bg-green-500/10 px-3 py-1.5 rounded-lg border border-green-500/20 transition-colors flex items-center gap-1"
+        >
+          <span>▶</span> <span>Next</span>
+        </button>
+      )}
+      <button
+        onClick={leaveRoom}
+        className="text-[11px] font-bold text-red-400 hover:bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 transition-colors flex items-center gap-1"
+      >
+        <span>Leave</span> <span>🚪</span>
+      </button>
+    </div>
+
+    {/* BOTTOM ROW (Mobile) / CENTER-LEFT (Desktop) — QR + Room Code */}
+    <div className="col-span-2 md:col-span-1 flex items-center gap-3 bg-zinc-900/50 md:bg-transparent p-2 md:p-0 rounded-xl border border-white/5 md:border-0 order-3 md:order-2 min-w-0">
+      {/* QR Code Trigger */}
+      <div
+        onClick={() => setIsQrOpen(true)}
+        className="cursor-pointer p-1.5 bg-white rounded-lg hover:scale-105 active:scale-95 transition-transform flex-shrink-0 group relative shadow-md"
+        title="Click to enlarge"
+      >
+        <QRCodeSVG value={`https://musiciana.vercel.app/room/${roomCode}`} size={32} />
+        <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <span className="text-[9px] text-white font-bold">🔍</span>
+        </div>
+      </div>
+      
+      {/* Code Text & Copy */}
+      <div className="min-w-0">
+        <p className="text-[9px] text-zinc-500 uppercase tracking-widest leading-none mb-1 font-semibold">
+          Room Code
+        </p>
+        <button
+          onClick={() => navigator.clipboard.writeText(roomCode)}
+          className="flex items-center gap-1.5 group active:scale-95 transition-transform"
+          title="Copy code"
+        >
+          <span className="text-sm md:text-base font-black text-pink-500 tracking-wider font-mono">
+            {roomCode}
+          </span>
+          <span className="text-zinc-600 group-hover:text-zinc-300 transition-colors text-xs">
+            ⎘
+          </span>
+        </button>
       </div>
     </div>
-    <div className="min-w-0">
-      <p className="text-[9px] text-zinc-500 uppercase tracking-widest leading-none mb-0.5">Room Code</p>
-      <button
-        onClick={() => navigator.clipboard.writeText(roomCode)}
-        className="flex items-center gap-1.5 group"
-        title="Copy code"
-      >
-        <span className="text-base font-black text-pink-500 tracking-wider">{roomCode}</span>
-        <span className="text-zinc-600 group-hover:text-zinc-300 transition-colors text-xs">⎘</span>
-      </button>
-    </div>
+
   </div>
 
-  {/* CENTER — Brand */}
-  <h1 className="text-lg md:text-xl font-black text-white tracking-[0.2em] uppercase flex-shrink-0">
-    MUSICIANA
-  </h1>
-
-  {/* RIGHT — Actions */}
-  <div className="flex items-center gap-2 flex-shrink-0">
-    {isHost && queue.length > 0 && (
-      <button
-        onClick={playNext}
-        className="text-[11px] font-bold text-green-400 hover:bg-green-500/10 px-3 py-1.5 rounded-lg border border-green-500/20 transition-colors"
-      >
-        ▶ Next
-      </button>
-    )}
-    <button
-      onClick={leaveRoom}
-      className="text-[11px] font-bold text-red-400 hover:bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 transition-colors"
-    >
-      Leave 🚪
-    </button>
-  </div>
-
-  {/* ─── QR CODE PREVIEW MODAL ─── */}
+  {/* ─── QR CODE PREVIEW MODAL (Walang binago rito dahil goods na ito) ─── */}
   {isQrOpen && (
     <div 
       onClick={() => setIsQrOpen(false)} 
       className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4 animate-fade-in"
     >
-      {/* Modal Box */}
       <div 
-        onClick={(e) => e.stopPropagation()} // Iwasang masara kapag mismong loob ng white box ang clinicck
+        onClick={(e) => e.stopPropagation()} 
         className="bg-zinc-950 border border-white/10 p-8 rounded-2xl flex flex-col items-center gap-6 max-w-sm w-full text-center relative shadow-2xl shadow-pink-500/10 scale-up-animation"
       >
-        {/* Close Button sa Gilid */}
         <button 
           onClick={() => setIsQrOpen(false)}
           className="absolute top-4 right-4 text-zinc-500 hover:text-white text-lg transition-colors"
@@ -804,27 +815,16 @@ export default function RoomPage() {
           <p className="text-xs text-zinc-400 mt-1">Scan the QR code below to jump in</p>
         </div>
 
-        {/* Malaking QR Code Container */}
         <div className="bg-white p-4 rounded-xl shadow-inner">
-          <QRCodeSVG
-            value={`https://musiciana.vercel.app/room/${roomCode}`}
-            size={240} // Lumaki na siya rito para kitang-kita mula sa malayo
-          />
+          <QRCodeSVG value={`https://musiciana.vercel.app/room/${roomCode}`} size={240} />
         </div>
 
-        {/* Room Code Info Display */}
         <div className="bg-zinc-900 border border-white/5 px-6 py-3 rounded-xl w-full">
-          <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">
-            Room Code
-          </p>
-          <p className="text-2xl font-black text-pink-500 tracking-wider mt-0.5">
-            {roomCode}
-          </p>
+          <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Room Code</p>
+          <p className="text-2xl font-black text-pink-500 tracking-wider mt-0.5">{roomCode}</p>
         </div>
 
-        <p className="text-[11px] text-zinc-500">
-          Click anywhere outside or ✕ to close
-        </p>
+        <p className="text-[11px] text-zinc-500">Click anywhere outside or ✕ to close</p>
       </div>
     </div>
   )}
