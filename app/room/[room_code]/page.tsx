@@ -82,6 +82,9 @@ interface YTPlayerInstance {
 export default function RoomPage() {
   const { room_code } = useParams();
   const roomCode = (Array.isArray(room_code) ? room_code[0] : room_code) ?? "";
+  const roomUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/room/${roomCode}`
+    : `https://musiciana.vercel.app/room/${roomCode}`;
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"queue" | "users">("queue");
   const [room, setRoom] = useState<Room | null>(null);
@@ -165,7 +168,7 @@ export default function RoomPage() {
         (payload) => {
           setQueue((prev) => {
             const newEntry = payload.new as QueueEntry;
-            if (prev.find((s) => s.id === newEntry.id)) return prev;
+            if (prev.find((s) => String(s.id) === String(newEntry.id))) return prev;
             return [...prev, newEntry];
           });
         }
@@ -176,7 +179,7 @@ export default function RoomPage() {
         { event: "UPDATE", schema: "public", table: "queue", filter: `room_code=eq.${roomCode}` },
         (payload) => {
           const updatedEntry = payload.new as QueueEntry;
-          setQueue((prev) => prev.map((s) => s.id === updatedEntry.id ? updatedEntry : s));
+          setQueue((prev) => prev.map((s) => String(s.id) === String(updatedEntry.id) ? updatedEntry : s));
         }
       );
       channel.on(
@@ -184,7 +187,7 @@ export default function RoomPage() {
         { event: "DELETE", schema: "public", table: "queue", filter: `room_code=eq.${roomCode}` },
         (payload) => {
           const oldEntry = payload.old as Pick<QueueEntry, "id">;
-          setQueue((prev) => prev.filter((s) => s.id !== oldEntry.id));
+          setQueue((prev) => prev.filter((s) => String(s.id) !== String(oldEntry.id)));
         }
       );
 
@@ -819,7 +822,7 @@ export default function RoomPage() {
         </div>
 
         <div className="bg-white p-4 rounded-xl shadow-inner">
-          <QRCodeSVG value={`https://musiciana.vercel.app/room/${roomCode}`} size={240} />
+          <QRCodeSVG value={roomUrl} size={240} />
         </div>
 
         <div className="bg-zinc-900 border border-white/5 px-6 py-3 rounded-xl w-full">

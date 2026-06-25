@@ -11,8 +11,29 @@ export default function JoinRoomPage() {
   const router = useRouter();
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
 
+  const normalizeRoomCode = (input: string) => {
+    const trimmed = input.trim();
+    if (!trimmed) return "";
+
+    try {
+      const url = new URL(trimmed);
+      const segments = url.pathname.split("/").filter(Boolean);
+      const roomIndex = segments.findIndex((segment) => segment.toLowerCase() === "room");
+      if (roomIndex !== -1 && segments[roomIndex + 1]) {
+        return segments[roomIndex + 1];
+      }
+    } catch {
+      // not a valid URL, continue with fallback
+    }
+
+    const match = trimmed.match(/room\/([A-Za-z0-9_-]+)/i);
+    if (match) return match[1];
+
+    return trimmed;
+  };
+
   const handleJoinRoom = (code: string) => {
-    const cleanedCode = code.trim();
+    const cleanedCode = normalizeRoomCode(code);
     if (!cleanedCode) {
       setError("Please enter or scan a valid room code.");
       return;
