@@ -885,16 +885,13 @@ export default function RoomPage() {
     <main className="min-h-screen bg-[#050505] text-white p-6">
 <header className="w-full border-b border-white/10 pb-4 mb-6">
   {/* MAIN HEADER CONTAINER */}
-  <div className="flex flex-col gap-4 w-full max-w-full mx-auto">
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 w-full">
-      
-      {/* LEFT/TOP-LEFT — BRAND */}
-      <h1 className="text-base md:text-xl font-black text-white tracking-[0.2em] uppercase order-1">
+  <div className="flex flex-col gap-3 w-full max-w-full mx-auto">
+    {/* ROW 1: MUSICIANA + LEAVE ICON */}
+    <div className="flex items-center justify-between w-full">
+      <h1 className="text-base md:text-xl font-black text-white tracking-[0.2em] uppercase">
         MUSICIANA
       </h1>
-
-      {/* RIGHT/TOP-RIGHT — ACTIONS */}
-      <div className="flex items-center justify-end gap-2 order-2 md:order-3 flex-shrink-0">
+      <div className="flex items-center gap-2">
         {isHost && queue.length > 0 && (
           <button
             onClick={playNext}
@@ -905,50 +902,47 @@ export default function RoomPage() {
         )}
         <button
           onClick={leaveRoom}
-          className="text-[11px] font-bold text-red-400 hover:bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 transition-colors flex items-center gap-1"
+          className="text-lg text-red-400 hover:text-red-300 transition-colors"
+          title="Leave room"
         >
-          <span>Leave</span> <span>🚪</span>
+          🚪
         </button>
       </div>
+    </div>
 
-      {/* BOTTOM ROW (Mobile) / CENTER-LEFT (Desktop) — QR + Room Code */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-zinc-900/50 md:bg-transparent p-2 md:p-0 rounded-xl border border-white/5 md:border-0 order-3 md:order-2 min-w-0 w-full">
-        {/* QR Code Trigger */}
-        <div
-          onClick={() => setIsQrOpen(true)}
-          className="cursor-pointer p-1.5 bg-white rounded-lg hover:scale-105 active:scale-95 transition-transform flex-shrink-0 group relative shadow-md"
-          title="Click to enlarge"
-        >
-          <QRCodeSVG value={`https://musiciana.vercel.app/room/${roomCode}`} size={32} />
-          <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-            <span className="text-[9px] text-white font-bold">🔍</span>
-          </div>
-        </div>
-        
-        {/* Code Text & Copy */}
-        <div className="min-w-0">
-          <p className="text-[9px] text-zinc-500 uppercase tracking-widest leading-none mb-1 font-semibold">
-            Room Code
-          </p>
-          <button
-            onClick={() => navigator.clipboard.writeText(roomCode)}
-            className="flex items-center gap-1.5 group active:scale-95 transition-transform"
-            title="Copy code"
-          >
-            <span className="text-sm md:text-base font-black text-pink-500 tracking-wider font-mono">
-              {roomCode}
-            </span>
-            <span className="text-zinc-600 group-hover:text-zinc-300 transition-colors text-xs">
-              ⎘
-            </span>
-          </button>
-        </div>
+    {/* ROW 2: QR + ROOM CODE (SIDE BY SIDE) */}
+    <div className="grid grid-cols-2 gap-3 w-full">
+      {/* QR Code Box */}
+      <div
+        onClick={() => setIsQrOpen(true)}
+        className="cursor-pointer bg-white rounded-2xl p-4 hover:scale-105 active:scale-95 transition-transform flex items-center justify-center shadow-md aspect-square"
+        title="Click to enlarge"
+      >
+        <QRCodeSVG value={`https://musiciana.vercel.app/room/${roomCode}`} size={80} />
       </div>
 
-    </div> {/* SARA NG FIRST ROW */}
+      {/* Room Code Box */}
+      <div className="bg-zinc-900/70 rounded-2xl border border-white/10 p-4 flex flex-col items-center justify-center">
+        <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-semibold mb-2">
+          Room Code
+        </p>
+        <button
+          onClick={() => navigator.clipboard.writeText(roomCode)}
+          className="flex items-center gap-2 group active:scale-95 transition-transform"
+          title="Copy code"
+        >
+          <span className="text-lg md:text-2xl font-black text-pink-500 tracking-wider font-mono">
+            {roomCode}
+          </span>
+          <span className="text-zinc-600 group-hover:text-zinc-300 transition-colors text-xs">
+            ⎘
+          </span>
+        </button>
+      </div>
+    </div>
 
-    {/* NOW PLAYING ROW */}
-    <div className="flex-1 rounded-2xl border border-white/10 bg-zinc-900/70 p-4">
+    {/* ROW 3: NOW PLAYING */}
+    <div className="rounded-2xl border border-white/10 bg-zinc-900/70 p-4">
       <p className="text-[9px] uppercase tracking-[0.3em] text-zinc-500 mb-1">Now playing</p>
       <p className="text-sm md:text-base font-bold text-white truncate">
         {currentTrackTitle || (currentVideoId ? "Loading current track…" : "No song is playing")}
