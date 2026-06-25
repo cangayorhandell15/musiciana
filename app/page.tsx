@@ -39,7 +39,6 @@ export default function LoginPage() {
   if (loading) return <div className="flex-1 bg-[#050505]" />;
 
   return (
-    // Binalot natin sa isang parent section na may sapat na top padding (pt-24) para ligtas sa kahit anong sticky/fixed header sa mobile.
     <main className="flex-1 min-h-screen relative w-full overflow-y-auto bg-[#050505] px-5 pt-28 pb-12 md:py-6 selection:bg-pink-500/30 flex items-center justify-center">
       
       {/* GLOW WRAPPER */}
@@ -52,7 +51,7 @@ export default function LoginPage() {
       {/* CONTENT CONTAINER */}
       <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-10 md:grid-cols-[1fr_400px] lg:gap-16">
         
-       {/* LEFT SIDE: Story & Welcome */}
+        {/* LEFT SIDE: Story & Welcome */}
         <motion.div 
           initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }}
           className="relative max-w-xl text-center md:text-left space-y-4"
