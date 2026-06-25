@@ -912,20 +912,20 @@ export default function RoomPage() {
     </div>
 
     {/* ROW 2: QR + CODE COMBINED */}
-    <div className="bg-zinc-900 border border-white/10 rounded-xl p-3 flex items-center gap-3">
+    <div className="bg-zinc-900 border border-white/10 rounded-xl p-3 flex items-center gap-3 max-w-[340px] w-full mx-auto">
       <div
         onClick={() => setIsQrOpen(true)}
-        className="cursor-pointer bg-white rounded-lg p-2 hover:scale-110 transition-transform flex-shrink-0 shadow-lg"
+        className="cursor-pointer bg-white rounded-lg p-2 hover:scale-105 transition-transform flex-shrink-0 shadow-lg"
         title="Enlarge QR"
       >
-        <QRCodeSVG value={`https://musiciana.vercel.app/room/${roomCode}`} size={56} />
+        <QRCodeSVG value={`https://musiciana.vercel.app/room/${roomCode}`} size={50} />
       </div>
       
       <div className="flex flex-col justify-center min-w-0">
         <p className="text-[8px] text-zinc-400 uppercase tracking-widest font-semibold">Code</p>
         <button
           onClick={() => navigator.clipboard.writeText(roomCode)}
-          className="text-sm md:text-base font-black text-pink-400 hover:text-pink-300 tracking-wider font-mono transition-colors"
+          className="text-sm font-black text-pink-400 hover:text-pink-300 tracking-wider font-mono transition-colors"
           title="Copy"
         >
           {roomCode}
