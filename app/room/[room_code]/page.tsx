@@ -122,6 +122,11 @@ export default function RoomPage() {
     return () => window.removeEventListener("resize", updateQrSize);
   }, []);
 
+  const prevIsHostRef = useRef(isHost);
+  useEffect(() => {
+    prevIsHostRef.current = isHost;
+  }, [isHost]);
+
   // ─── YouTube IFrame Player API refs ─────────────────────────────────────
   const ytContainerRef = useRef<HTMLDivElement | null>(null);
   const ytPlayerRef = useRef<YTPlayerInstance | null>(null);
@@ -677,11 +682,21 @@ export default function RoomPage() {
       if (!ytContainerRef.current) return;
 
       if (ytPlayerRef.current) {
-        try {
-          ytPlayerRef.current.loadVideoById(currentVideoId);
-          return;
-        } catch (e) {
-          console.warn("[yt-player] loadVideoById failed, recreating player:", e);
+        const hostChanged = prevIsHostRef.current !== isHost;
+        if (!hostChanged) {
+          try {
+            ytPlayerRef.current.loadVideoById(currentVideoId);
+            return;
+          } catch (e) {
+            console.warn("[yt-player] loadVideoById failed, recreating player:", e);
+            try {
+              ytPlayerRef.current.destroy();
+            } catch {
+              // ignore
+            }
+            ytPlayerRef.current = null;
+          }
+        } else {
           try {
             ytPlayerRef.current.destroy();
           } catch {
