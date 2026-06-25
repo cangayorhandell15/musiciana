@@ -278,7 +278,13 @@ export default function RoomPage() {
           await channel.track({
             user_id: user.id,
             email: user.email || "",
-            display_name: user.user_metadata?.display_name || user.email?.split("@")[0] || "Guest",
+            display_name:
+              user.user_metadata?.display_name ||
+              user.user_metadata?.full_name ||
+              user.user_metadata?.name ||
+              (user.email
+                ? user.email.split("@")[0].replace(/[._\-+]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+                : "Guest"),
             is_host: user.id === roomData.host_id,
           });
           
@@ -400,11 +406,6 @@ export default function RoomPage() {
   const addToQueue = async (video: YouTubeVideo) => {
     if (!currentUser) {
       alert("Please log in to add songs.");
-      return;
-    }
-
-    if (!isHost) {
-      alert("Only the host can add songs to the queue.");
       return;
     }
 
@@ -832,57 +833,76 @@ export default function RoomPage() {
   )}
 </header>
 
-      <div className="grid md:grid-cols-3 gap-8">
-        <div className="md:col-span-2 h-[500px] bg-black rounded-2xl border border-white/5 overflow-hidden flex items-center justify-center relative">
-          <div className="w-full h-full">
-            <div ref={ytContainerRef} className="w-full h-full" />
-          </div>
+      <div className={`grid gap-8 ${isHost ? "md:grid-cols-3" : "max-w-lg mx-auto"}`}>
+        {/* Video player — host only */}
+        {isHost && (
+          <div className="md:col-span-2 h-[500px] bg-black rounded-2xl border border-white/5 overflow-hidden flex items-center justify-center relative">
+            <div className="w-full h-full">
+              <div ref={ytContainerRef} className="w-full h-full" />
+            </div>
 
-          {currentVideoId ? (
-            <>
-              {!canPlayCurrentVideo ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
-                  <p className="text-zinc-500 text-sm">Invalid video. Loading next song...</p>
-                </div>
-              ) : isVideoRestricted ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black z-10">
-                  <div className="text-3xl animate-pulse">⏭️</div>
-                  <p className="text-xs text-zinc-500">Skipping unavailable video...</p>
-                </div>
-              ) : (
-                !isPlayerReady && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10 gap-2">
-                    <div className="text-4xl animate-pulse">⏳</div>
-                    <p className="text-xs text-zinc-400">Loading video...</p>
+            {currentVideoId ? (
+              <>
+                {!canPlayCurrentVideo ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
+                    <p className="text-zinc-500 text-sm">Invalid video. Loading next song...</p>
                   </div>
-                )
+                ) : isVideoRestricted ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black z-10">
+                    <div className="text-3xl animate-pulse">⏭️</div>
+                    <p className="text-xs text-zinc-500">Skipping unavailable video...</p>
+                  </div>
+                ) : (
+                  !isPlayerReady && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10 gap-2">
+                      <div className="text-4xl animate-pulse">⏳</div>
+                      <p className="text-xs text-zinc-400">Loading video...</p>
+                    </div>
+                  )
+                )}
+                {canPlayCurrentVideo && !isVideoRestricted && isMuted && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsMuted(false);
+                      supabase.from("rooms").update({ is_playing: true }).eq("room_code", roomCode);
+                    }}
+                    className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 gap-3 group"
+                  >
+                    <span className="text-4xl group-hover:scale-110 transition-transform">🔇</span>
+                    <span className="text-xs text-zinc-300 font-bold tracking-widest uppercase">
+                      Click to unmute
+                    </span>
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
+                <p className="text-zinc-500 text-sm">Search for a song to get started 🎤</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Queue panel — visible to everyone */}
+        <div className={`bg-zinc-900/30 rounded-2xl border border-white/5 p-4 flex flex-col ${isHost ? "h-[500px]" : "min-h-[500px]"}`}>
+          {/* Non-host: show now playing status */}
+          {!isHost && (
+            <div className={`mb-4 px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
+              currentVideoId && canPlayCurrentVideo && !isVideoRestricted
+                ? "bg-pink-500/10 border-pink-500/20 text-pink-300"
+                : "bg-zinc-800/50 border-white/5 text-zinc-500"
+            }`}>
+              {currentVideoId && canPlayCurrentVideo && !isVideoRestricted ? (
+                <>
+                  <span className="animate-pulse">♪</span>
+                  <span className="truncate">Now playing — add your song below!</span>
+                </>
+              ) : (
+                <span className="w-full text-center">Waiting for host to play a song… 🎤</span>
               )}
-              {canPlayCurrentVideo && !isVideoRestricted && isMuted && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsMuted(false);
-                    if(isHost) supabase.from("rooms").update({ is_playing: true }).eq("room_code", roomCode);
-                  }}
-                  className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 gap-3 group"
-                >
-                  <span className="text-4xl group-hover:scale-110 transition-transform">🔇</span>
-                  <span className="text-xs text-zinc-300 font-bold tracking-widest uppercase">
-                    Click to unmute
-                  </span>
-                </button>
-              )}
-            </>
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
-              <p className="text-zinc-500 text-sm">
-                {isHost ? "Search for a song to get started 🎤" : "Waiting for host to play a song…"}
-              </p>
             </div>
           )}
-        </div>
-
-        <div className="bg-zinc-900/30 rounded-2xl border border-white/5 p-4 h-[500px] flex flex-col">
           <div className="flex gap-4 mb-4 border-b border-white/5">
             <button
               onClick={() => setActiveTab("queue")}
