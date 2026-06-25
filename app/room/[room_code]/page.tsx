@@ -121,6 +121,19 @@ export default function RoomPage() {
   const [isFetchingRecs, setIsFetchingRecs] = useState(false);
   const [isAddingRec, setIsAddingRec] = useState(false); // ANTI-TADTAD GUARD STATE
 
+  const refreshQueue = useCallback(async () => {
+    if (!roomCode) return;
+    const { data } = await supabase
+      .from("queue")
+      .select("*")
+      .eq("room_code", roomCode)
+      .order("created_at", { ascending: true });
+
+    if (data) {
+      setQueue(data);
+    }
+  }, [roomCode, supabase]);
+
   useEffect(() => {
     if (!roomCode) return;
 
@@ -166,8 +179,8 @@ export default function RoomPage() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "queue", filter: `room_code=eq.${roomCode}` },
         (payload) => {
+          const newEntry = payload.new as QueueEntry;
           setQueue((prev) => {
-            const newEntry = payload.new as QueueEntry;
             if (prev.find((s) => String(s.id) === String(newEntry.id))) return prev;
             return [...prev, newEntry];
           });
@@ -179,14 +192,25 @@ export default function RoomPage() {
         { event: "UPDATE", schema: "public", table: "queue", filter: `room_code=eq.${roomCode}` },
         (payload) => {
           const updatedEntry = payload.new as QueueEntry;
-          setQueue((prev) => prev.map((s) => String(s.id) === String(updatedEntry.id) ? updatedEntry : s));
+          setQueue((prev) => {
+            const exists = prev.some((s) => String(s.id) === String(updatedEntry.id));
+            if (!exists) {
+              void refreshQueue();
+              return prev;
+            }
+            return prev.map((s) => String(s.id) === String(updatedEntry.id) ? updatedEntry : s);
+          });
         }
       );
       channel.on(
         "postgres_changes",
         { event: "DELETE", schema: "public", table: "queue", filter: `room_code=eq.${roomCode}` },
         (payload) => {
-          const oldEntry = payload.old as Pick<QueueEntry, "id">;
+          const oldEntry = payload.old as Pick<QueueEntry, "id"> | null;
+          if (!oldEntry?.id) {
+            void refreshQueue();
+            return;
+          }
           setQueue((prev) => prev.filter((s) => String(s.id) !== String(oldEntry.id)));
         }
       );
@@ -460,6 +484,7 @@ export default function RoomPage() {
     if (!nextSong) {
       console.log("[playNext] Queue empty, clearing player");
       await supabase.from("rooms").update({ current_video_id: null, is_playing: false }).eq("room_code", roomCode);
+      await refreshQueue();
       return;
     }
 
@@ -467,7 +492,7 @@ export default function RoomPage() {
 
     setIsPlayerReady(false);
     setRoom((prev) => (prev ? { ...prev, current_video_id: nextSong.video_id, is_playing: true } : prev));
-    setQueue((prev) => prev.filter((s) => s.id !== nextSong.id));
+    setQueue((prev) => prev.filter((s) => String(s.id) !== String(nextSong.id)));
 
     const { error: roomErr } = await supabase
       .from("rooms")
@@ -485,8 +510,9 @@ export default function RoomPage() {
     if (roomErr || queueErr) {
       console.error("Database update failed:", roomErr || queueErr);
       alert("Nagka-error sa pag-play ng kanta.");
+      await refreshQueue();
     }
-  }, [roomCode, supabase]);
+  }, [roomCode, supabase, refreshQueue]);
 
   const handlePlayerError = useCallback(async () => {
     console.warn("YouTube video unavailable (restricted/not found):", currentVideoId);
@@ -632,6 +658,17 @@ export default function RoomPage() {
       console.warn("[yt-player] mute/unmute call failed (safe to ignore):", e);
     }
   }, [isMuted, isPlayerReady]);
+
+  useEffect(() => {
+    if (!ytPlayerRef.current || !canPlayCurrentVideo) return;
+    try {
+      if (!isHost && room?.current_video_id && !isMuted) {
+        ytPlayerRef.current.unMute();
+      }
+    } catch (e) {
+      console.warn("[yt-player] forced unmute failed:", e);
+    }
+  }, [canPlayCurrentVideo, currentVideoId, isHost, isMuted, room?.current_video_id]);
 
   useEffect(() => {
     return () => {
