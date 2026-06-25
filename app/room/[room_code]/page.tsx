@@ -173,6 +173,14 @@ export default function RoomPage() {
 
       channel.on(
         "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "queue", filter: `room_code=eq.${roomCode}` },
+        (payload) => {
+          const updatedEntry = payload.new as QueueEntry;
+          setQueue((prev) => prev.map((s) => s.id === updatedEntry.id ? updatedEntry : s));
+        }
+      );
+      channel.on(
+        "postgres_changes",
         { event: "DELETE", schema: "public", table: "queue", filter: `room_code=eq.${roomCode}` },
         (payload) => {
           const oldEntry = payload.old as Pick<QueueEntry, "id">;
