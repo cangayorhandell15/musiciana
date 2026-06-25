@@ -822,64 +822,67 @@ export default function RoomPage() {
   {/* MAIN HEADER CONTAINER */}
   <div className="flex flex-col gap-4 w-full max-w-full mx-auto">
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 w-full">
-    
-    {/* LEFT/TOP-LEFT — BRAND (Mas magandang unahin ito para sa natural reading hierarchy) */}
-    <h1 className="text-base md:text-xl font-black text-white tracking-[0.2em] uppercase order-1">
-      MUSICIANA
-    </h1>
+      
+      {/* LEFT/TOP-LEFT — BRAND */}
+      <h1 className="text-base md:text-xl font-black text-white tracking-[0.2em] uppercase order-1">
+        MUSICIANA
+      </h1>
 
-    {/* RIGHT/TOP-RIGHT — ACTIONS */}
-    <div className="flex items-center justify-end gap-2 order-2 md:order-3 flex-shrink-0">
-      {isHost && queue.length > 0 && (
+      {/* RIGHT/TOP-RIGHT — ACTIONS */}
+      <div className="flex items-center justify-end gap-2 order-2 md:order-3 flex-shrink-0">
+        {isHost && queue.length > 0 && (
+          <button
+            onClick={playNext}
+            className="text-[11px] font-bold text-green-400 hover:bg-green-500/10 px-3 py-1.5 rounded-lg border border-green-500/20 transition-colors flex items-center gap-1"
+          >
+            <span>▶</span> <span>Next</span>
+          </button>
+        )}
         <button
-          onClick={playNext}
-          className="text-[11px] font-bold text-green-400 hover:bg-green-500/10 px-3 py-1.5 rounded-lg border border-green-500/20 transition-colors flex items-center gap-1"
+          onClick={leaveRoom}
+          className="text-[11px] font-bold text-red-400 hover:bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 transition-colors flex items-center gap-1"
         >
-          <span>▶</span> <span>Next</span>
+          <span>Leave</span> <span>🚪</span>
         </button>
-      )}
-      <button
-        onClick={leaveRoom}
-        className="text-[11px] font-bold text-red-400 hover:bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 transition-colors flex items-center gap-1"
-      >
-        <span>Leave</span> <span>🚪</span>
-      </button>
-    </div>
+      </div>
 
-    {/* BOTTOM ROW (Mobile) / CENTER-LEFT (Desktop) — QR + Room Code */}
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-zinc-900/50 md:bg-transparent p-2 md:p-0 rounded-xl border border-white/5 md:border-0 order-3 md:order-2 min-w-0 w-full">
-      {/* QR Code Trigger */}
-      <div
-        onClick={() => setIsQrOpen(true)}
-        className="cursor-pointer p-1.5 bg-white rounded-lg hover:scale-105 active:scale-95 transition-transform flex-shrink-0 group relative shadow-md"
-        title="Click to enlarge"
-      >
-        <QRCodeSVG value={`https://musiciana.vercel.app/room/${roomCode}`} size={32} />
-        <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <span className="text-[9px] text-white font-bold">🔍</span>
+      {/* BOTTOM ROW (Mobile) / CENTER-LEFT (Desktop) — QR + Room Code */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-zinc-900/50 md:bg-transparent p-2 md:p-0 rounded-xl border border-white/5 md:border-0 order-3 md:order-2 min-w-0 w-full">
+        {/* QR Code Trigger */}
+        <div
+          onClick={() => setIsQrOpen(true)}
+          className="cursor-pointer p-1.5 bg-white rounded-lg hover:scale-105 active:scale-95 transition-transform flex-shrink-0 group relative shadow-md"
+          title="Click to enlarge"
+        >
+          <QRCodeSVG value={`https://musiciana.vercel.app/room/${roomCode}`} size={32} />
+          <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="text-[9px] text-white font-bold">🔍</span>
+          </div>
+        </div>
+        
+        {/* Code Text & Copy */}
+        <div className="min-w-0">
+          <p className="text-[9px] text-zinc-500 uppercase tracking-widest leading-none mb-1 font-semibold">
+            Room Code
+          </p>
+          <button
+            onClick={() => navigator.clipboard.writeText(roomCode)}
+            className="flex items-center gap-1.5 group active:scale-95 transition-transform"
+            title="Copy code"
+          >
+            <span className="text-sm md:text-base font-black text-pink-500 tracking-wider font-mono">
+              {roomCode}
+            </span>
+            <span className="text-zinc-600 group-hover:text-zinc-300 transition-colors text-xs">
+              ⎘
+            </span>
+          </button>
         </div>
       </div>
-      
-      {/* Code Text & Copy */}
-      <div className="min-w-0">
-        <p className="text-[9px] text-zinc-500 uppercase tracking-widest leading-none mb-1 font-semibold">
-          Room Code
-        </p>
-        <button
-          onClick={() => navigator.clipboard.writeText(roomCode)}
-          className="flex items-center gap-1.5 group active:scale-95 transition-transform"
-          title="Copy code"
-        >
-          <span className="text-sm md:text-base font-black text-pink-500 tracking-wider font-mono">
-            {roomCode}
-          </span>
-          <span className="text-zinc-600 group-hover:text-zinc-300 transition-colors text-xs">
-            ⎘
-          </span>
-        </button>
-      </div>
-    </div>
 
+    </div> {/* SARA NG FIRST ROW */}
+
+    {/* NOW PLAYING & SECONDARY ROOM CODE ROW */}
     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 w-full">
       <div className="flex-1 rounded-2xl border border-white/10 bg-zinc-900/70 p-4">
         <p className="text-[9px] uppercase tracking-[0.3em] text-zinc-500 mb-1">Now playing</p>
@@ -904,9 +907,9 @@ export default function RoomPage() {
       </div>
     </div>
 
-  </div>
+  </div> {/* SARA NG MAIN HEADER CONTAINER */}
 
-  {/* ─── QR CODE PREVIEW MODAL (Walang binago rito dahil goods na ito) ─── */}
+  {/* ─── QR CODE PREVIEW MODAL ─── */}
   {isQrOpen && (
     <div 
       onClick={() => setIsQrOpen(false)} 
