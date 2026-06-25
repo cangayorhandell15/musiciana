@@ -943,7 +943,8 @@ export default function RoomPage() {
   )}
 </header>
 
-      <div className={`grid gap-8 ${isHost ? "md:grid-cols-3" : "max-w-lg mx-auto"}`}>
+  {/* ─── MAIN ROOM GRID ─── */}
+  <div className={`grid gap-8 ${isHost ? "md:grid-cols-3" : "max-w-lg mx-auto"}`}>
         {/* Video player — host only */}
         {isHost && (
           <div className="md:col-span-2 h-[500px] bg-black rounded-2xl border border-white/5 overflow-hidden flex items-center justify-center relative">
