@@ -99,6 +99,7 @@ export default function RoomPage() {
   const [isMuted, setIsMuted] = useState(true);
   const [badVideoIds, setBadVideoIds] = useState<Set<string>>(new Set());
   const [restrictedVideoIds, setRestrictedVideoIds] = useState<Set<string>>(new Set());
+  const [currentTrackTitle, setCurrentTrackTitle] = useState("");
   const [isTransferringHost, setIsTransferringHost] = useState(false);
   const supabase = useMemo(() => createClient(), []);
   const queueRef = useRef<QueueEntry[]>([]);
@@ -137,13 +138,13 @@ export default function RoomPage() {
 
   const transferHost = useCallback(async (newHostId: string) => {
     if (!roomCode || !room?.host_id || room.host_id === newHostId) return;
+    if (!isHost) return;
     setIsTransferringHost(true);
 
     const { error } = await supabase
       .from("rooms")
       .update({ host_id: newHostId })
-      .eq("room_code", roomCode)
-      .eq("host_id", room.host_id);
+      .eq("room_code", roomCode);
 
     if (error) {
       console.error("Host transfer failed:", error);
@@ -160,7 +161,7 @@ export default function RoomPage() {
     }
 
     setIsTransferringHost(false);
-  }, [roomCode, room?.host_id, supabase, currentUser?.id]);
+  }, [roomCode, room?.host_id, supabase, currentUser?.id, isHost]);
 
   useEffect(() => {
     if (!roomCode) return;
@@ -325,17 +326,13 @@ export default function RoomPage() {
       channel.on("presence", { event: "leave" }, ({ leftPresences }) => {
         setUsers((prev) => {
           const next = new Map(prev);
-          let hostLeft = false;
-
           leftPresences.forEach((p) => {
             const presence = p as unknown as PresenceUser;
-            if (presence.is_host) {
-              hostLeft = true;
-            }
             next.delete(presence.user_id);
           });
 
-          if (hostLeft && next.size > 0) {
+          const hostStillPresent = room?.host_id ? next.has(room.host_id) : false;
+          if (!hostStillPresent && room?.host_id && next.size > 0) {
             const nextHost = Array.from(next.values())[0];
             void transferHost(nextHost.user_id);
           }
@@ -533,6 +530,8 @@ export default function RoomPage() {
     setIsPlayerReady(false);
     setRoom((prev) => (prev ? { ...prev, current_video_id: nextSong.video_id, is_playing: true } : prev));
     setQueue((prev) => prev.filter((s) => String(s.id) !== String(nextSong.id)));
+
+    setCurrentTrackTitle(nextSong.title);
 
     const { error: roomErr } = await supabase
       .from("rooms")
@@ -821,7 +820,8 @@ export default function RoomPage() {
     <main className="min-h-screen bg-[#050505] text-white p-6">
 <header className="w-full border-b border-white/10 pb-4 mb-6">
   {/* MAIN HEADER CONTAINER */}
-  <div className="grid grid-cols-2 md:flex md:items-center md:justify-between gap-4 items-center w-full">
+  <div className="flex flex-col gap-4 w-full max-w-full mx-auto">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 w-full">
     
     {/* LEFT/TOP-LEFT — BRAND (Mas magandang unahin ito para sa natural reading hierarchy) */}
     <h1 className="text-base md:text-xl font-black text-white tracking-[0.2em] uppercase order-1">
@@ -847,7 +847,7 @@ export default function RoomPage() {
     </div>
 
     {/* BOTTOM ROW (Mobile) / CENTER-LEFT (Desktop) — QR + Room Code */}
-    <div className="col-span-2 md:col-span-1 flex items-center gap-3 bg-zinc-900/50 md:bg-transparent p-2 md:p-0 rounded-xl border border-white/5 md:border-0 order-3 md:order-2 min-w-0">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-zinc-900/50 md:bg-transparent p-2 md:p-0 rounded-xl border border-white/5 md:border-0 order-3 md:order-2 min-w-0 w-full">
       {/* QR Code Trigger */}
       <div
         onClick={() => setIsQrOpen(true)}
@@ -877,6 +877,30 @@ export default function RoomPage() {
             ⎘
           </span>
         </button>
+      </div>
+    </div>
+
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 w-full">
+      <div className="flex-1 rounded-2xl border border-white/10 bg-zinc-900/70 p-4">
+        <p className="text-[9px] uppercase tracking-[0.3em] text-zinc-500 mb-1">Now playing</p>
+        <p className="text-sm md:text-base font-bold text-white truncate">
+          {currentTrackTitle || (currentVideoId ? "Loading current track…" : "No song is playing")}
+        </p>
+      </div>
+      <div className="flex-1 rounded-2xl border border-white/10 bg-zinc-900/70 p-4">
+        <p className="text-[9px] uppercase tracking-[0.3em] text-zinc-500 mb-1">Room Code</p>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm md:text-base font-black text-pink-500 tracking-wider font-mono truncate">
+            {roomCode}
+          </span>
+          <button
+            onClick={() => navigator.clipboard.writeText(roomCode)}
+            className="text-zinc-400 hover:text-white text-xs transition-colors"
+            title="Copy code"
+          >
+            ⎘
+          </button>
+        </div>
       </div>
     </div>
 
