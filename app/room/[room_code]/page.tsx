@@ -883,73 +883,65 @@ export default function RoomPage() {
 
   return (
     <main className="min-h-screen bg-[#050505] text-white p-6">
-<header className="w-full border-b border-white/10 pb-4 mb-6">
-  {/* MAIN HEADER CONTAINER */}
-  <div className="flex flex-col gap-3 w-full max-w-full mx-auto">
-    {/* ROW 1: MUSICIANA + LEAVE ICON */}
+<header className="w-full border-b border-white/10 pb-6 mb-8">
+  <div className="flex flex-col gap-4 w-full">
+    {/* ROW 1: BRAND + LEAVE */}
     <div className="flex items-center justify-between w-full">
-      <h1 className="text-base md:text-xl font-black text-white tracking-[0.2em] uppercase">
+      <h1 className="text-lg md:text-2xl font-black text-white tracking-[0.2em] uppercase">
         MUSICIANA
       </h1>
       <div className="flex items-center gap-2">
         {isHost && queue.length > 0 && (
           <button
             onClick={playNext}
-            className="text-[11px] font-bold text-green-400 hover:bg-green-500/10 px-3 py-1.5 rounded-lg border border-green-500/20 transition-colors flex items-center gap-1"
+            className="text-xs font-bold text-green-400 hover:bg-green-500/10 px-3 py-1.5 rounded-lg border border-green-500/20 transition-colors flex items-center gap-1"
           >
             <span>▶</span> <span>Next</span>
           </button>
         )}
         <button
           onClick={leaveRoom}
-          className="text-lg text-red-400 hover:text-red-300 transition-colors"
+          className="text-red-400 hover:text-red-300 transition-colors"
           title="Leave room"
         >
-          🚪
+          <svg viewBox="0 0 24 24" className="h-7 w-7 fill-current" aria-hidden="true">
+            <path d="M3 3.75A2.25 2.25 0 0 1 5.25 1.5h7.5A2.25 2.25 0 0 1 15 3.75v16.5A2.25 2.25 0 0 1 12.75 22.5h-7.5A2.25 2.25 0 0 1 3 20.25V3.75Zm2.25-.75a.75.75 0 0 0-.75.75v16.5c0 .414.336.75.75.75h7.5a.75.75 0 0 0 .75-.75V3.75a.75.75 0 0 0-.75-.75h-7.5ZM18.28 12.53l-3.22 3.22a.75.75 0 0 1-1.06-1.06l1.47-1.47H9.75a.75.75 0 0 1 0-1.5h5.72l-1.47-1.47a.75.75 0 1 1 1.06-1.06l3.22 3.22a.75.75 0 0 1 0 1.06Z"/>
+          </svg>
         </button>
       </div>
     </div>
 
-    {/* ROW 2: QR + ROOM CODE (SIDE BY SIDE) */}
-    <div className="grid grid-cols-2 gap-3 w-full">
-      {/* QR Code Box */}
+    {/* ROW 2: QR + CODE COMBINED */}
+    <div className="bg-zinc-900 border border-white/10 rounded-xl p-3 flex items-center gap-3">
       <div
         onClick={() => setIsQrOpen(true)}
-        className="cursor-pointer bg-white rounded-2xl p-4 hover:scale-105 active:scale-95 transition-transform flex items-center justify-center shadow-md aspect-square"
-        title="Click to enlarge"
+        className="cursor-pointer bg-white rounded-lg p-2 hover:scale-110 transition-transform flex-shrink-0 shadow-lg"
+        title="Enlarge QR"
       >
-        <QRCodeSVG value={`https://musiciana.vercel.app/room/${roomCode}`} size={80} />
+        <QRCodeSVG value={`https://musiciana.vercel.app/room/${roomCode}`} size={56} />
       </div>
-
-      {/* Room Code Box */}
-      <div className="bg-zinc-900/70 rounded-2xl border border-white/10 p-4 flex flex-col items-center justify-center">
-        <p className="text-[9px] text-zinc-500 uppercase tracking-widest font-semibold mb-2">
-          Room Code
-        </p>
+      
+      <div className="flex flex-col justify-center min-w-0">
+        <p className="text-[8px] text-zinc-400 uppercase tracking-widest font-semibold">Code</p>
         <button
           onClick={() => navigator.clipboard.writeText(roomCode)}
-          className="flex items-center gap-2 group active:scale-95 transition-transform"
-          title="Copy code"
+          className="text-sm md:text-base font-black text-pink-400 hover:text-pink-300 tracking-wider font-mono transition-colors"
+          title="Copy"
         >
-          <span className="text-lg md:text-2xl font-black text-pink-500 tracking-wider font-mono">
-            {roomCode}
-          </span>
-          <span className="text-zinc-600 group-hover:text-zinc-300 transition-colors text-xs">
-            ⎘
-          </span>
+          {roomCode}
         </button>
       </div>
     </div>
 
     {/* ROW 3: NOW PLAYING */}
-    <div className="rounded-2xl border border-white/10 bg-zinc-900/70 p-4">
-      <p className="text-[9px] uppercase tracking-[0.3em] text-zinc-500 mb-1">Now playing</p>
-      <p className="text-sm md:text-base font-bold text-white truncate">
-        {currentTrackTitle || (currentVideoId ? "Loading current track…" : "No song is playing")}
+    <div className="bg-zinc-900 border border-white/10 rounded-xl p-3">
+      <p className="text-[8px] text-zinc-500 uppercase tracking-widest font-semibold mb-1">Now Playing</p>
+      <p className="text-xs md:text-sm font-bold text-white truncate">
+        {currentTrackTitle || (currentVideoId ? "Loading…" : "No song playing")}
       </p>
     </div>
-
-  </div> {/* SARA NG MAIN HEADER CONTAINER */}
+  </div>
+</header>
 
   {/* ─── QR CODE PREVIEW MODAL ─── */}
   {isQrOpen && (
@@ -986,7 +978,6 @@ export default function RoomPage() {
       </div>
     </div>
   )}
-</header>
 
   {/* ─── MAIN ROOM GRID ─── */}
   <div className={`grid gap-8 ${isHost ? "md:grid-cols-3" : "max-w-lg mx-auto"}`}>
