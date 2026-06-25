@@ -106,6 +106,8 @@ export default function LoginPage() {
               }}
               theme="dark"
               providers={["google"]}
+              view="sign_in"
+              redirectTo={typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined}
             />
           ) : (
             <p className="text-center text-sm leading-relaxed text-zinc-400">
