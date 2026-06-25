@@ -367,10 +367,10 @@ export default function RoomPage() {
   }, [queue, room?.current_video_id]);
 
   useEffect(() => {
-    if (activeTab === "queue" && isHost && recommendations.length === 0) {
+    if (activeTab === "queue" && recommendations.length === 0) {
       void fetchRecommendations();
     }
-  }, [activeTab, isHost, recommendations.length, fetchRecommendations]);
+  }, [activeTab, recommendations.length, fetchRecommendations]);
 
   const addRecommendedToQueue = async (rec: { title: string; artist: string }) => {
     if (isAddingRec) return; // ANTI-TADTAD LOCK
@@ -412,11 +412,6 @@ export default function RoomPage() {
   }, [searchQuery]);
 
   const addToQueue = async (video: YouTubeVideo) => {
-    if (!currentUser) {
-      alert("Please log in to add songs.");
-      return;
-    }
-
     if (!YOUTUBE_VIDEO_ID_PATTERN.test(video.id.videoId)) {
       alert("This video cannot be queued.");
       return;
@@ -427,7 +422,7 @@ export default function RoomPage() {
       video_id: video.id.videoId,
       title: video.snippet.title,
       thumbnail: video.snippet.thumbnails.default.url,
-      added_by: currentUser.id,
+      added_by: currentUser?.id ?? null,
     };
 
     const tempId = `temp-${video.id.videoId}-${Date.now()}`;
@@ -968,7 +963,7 @@ export default function RoomPage() {
                 ))}
 
                 {/* Recommendations Section */}
-                {isHost && !searchQuery && (
+                {!searchQuery && (
                   <div className="mt-3">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-[10px] text-pink-500 font-bold tracking-widest uppercase">
