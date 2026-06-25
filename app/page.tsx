@@ -52,14 +52,10 @@ export default function LoginPage() {
       {/* CONTENT CONTAINER */}
       <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-10 md:grid-cols-[1fr_400px] lg:gap-16">
         
-        {/* LEFT SIDE: Story & Welcome */}
+       {/* LEFT SIDE: Story & Welcome */}
         <motion.div 
-          initial={{ opacity: 0, y: 20, x: 0 }} 
-          animate={{ opacity: 1, y: 0, x: 0 }}
-          variants={{
-            md: { initial: { x: -50, y: 0 }, animate: { x: 0, y: 0 } }
-          }}
-          className="relative max-w-xl text-center md:text-left space-y-6 self-center"
+          initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }}
+          className="relative max-w-xl text-center md:text-left space-y-4"
         >
           <div className="absolute -left-6 top-1 bottom-1 w-1 bg-gradient-to-b from-pink-500 to-violet-500 rounded-full hidden md:block shadow-[0_0_15px_rgba(236,72,153,0.5)]" />
           
