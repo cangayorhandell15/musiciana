@@ -225,6 +225,7 @@ export default function RoomPage() {
               (prevRoom?.current_video_id ?? null) !== (newRoom?.current_video_id ?? null);
             if (videoChanged) {
               setIsPlayerReady(false);
+              void refreshQueue();
             }
             return newRoom;
           });
