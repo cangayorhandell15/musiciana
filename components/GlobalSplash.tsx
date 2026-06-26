@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 
+const SPLASH_STORAGE_KEY = "musiciana_has_seen_splash";
+
 export default function GlobalSplash() {
   const [showSplash, setShowSplash] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -11,8 +13,8 @@ export default function GlobalSplash() {
   useEffect(() => {
     setIsMounted(true);
 
-    const hasSeenSplash = window.sessionStorage.getItem("hasSeenSplash");
-    if (!hasSeenSplash) {
+    const hasSeenSplash = window.localStorage.getItem(SPLASH_STORAGE_KEY);
+    if (hasSeenSplash !== "true") {
       setShowSplash(true);
     }
   }, []);
@@ -32,7 +34,7 @@ export default function GlobalSplash() {
 
     const timer = window.setTimeout(() => {
       setShowSplash(false);
-      window.sessionStorage.setItem("hasSeenSplash", "true");
+      window.localStorage.setItem(SPLASH_STORAGE_KEY, "true");
     }, 2500);
 
     return () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { createBrowserClient } from "@supabase/ssr";
+import { createClient } from "@/utils/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
@@ -24,7 +24,7 @@ export default function Header() {
   
   const supabase = useMemo(() => {
     if (!supabaseUrl || !supabaseAnonKey) return null;
-    return createBrowserClient(supabaseUrl, supabaseAnonKey);
+    return createClient();
   }, []);
 
   useEffect(() => {

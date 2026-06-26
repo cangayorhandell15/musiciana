@@ -1,6 +1,6 @@
 "use client";
 
-import { createBrowserClient } from "@supabase/ssr";
+import { createClient } from "@/utils/supabase/client";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 import { useEffect, useMemo, useState } from "react";
@@ -17,7 +17,7 @@ export default function LoginPage() {
   const supabase = useMemo(() => {
     if (!supabaseUrl || !supabaseAnonKey) return null;
 
-    return createBrowserClient(supabaseUrl, supabaseAnonKey);
+    return createClient();
   }, []);
 
   useEffect(() => {

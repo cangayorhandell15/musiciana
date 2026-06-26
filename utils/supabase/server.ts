@@ -12,11 +12,17 @@ export async function createClient() {
         get(name: string) {
           return cookieStore.get(name)?.value
         },
-        set(name: string, value: string, options: CookieOptions) { // Palitan ang 'any'
+        set(name: string, value: string, options: CookieOptions) {
           cookieStore.set(name, value, options)
         },
-        remove(name: string, options: CookieOptions) { // Palitan ang 'any'
+        remove(name: string, options: CookieOptions) {
           cookieStore.set(name, '', { ...options, maxAge: 0 })
+        },
+      },
+      auth: {
+        cookieOptions: {
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
         },
       },
     }
