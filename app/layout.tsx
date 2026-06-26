@@ -5,6 +5,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import GlobalSplash from "@/components/GlobalSplash";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,6 +33,8 @@ export default function RootLayout({
       <body className="min-h-screen bg-zinc-950 text-white flex flex-col">
         
         {!isRoomPage && <Header />}
+
+        <GlobalSplash />
 
         <main className="flex-1 min-h-0 flex flex-col w-full">
           {children}
