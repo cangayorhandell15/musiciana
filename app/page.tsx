@@ -14,9 +14,9 @@ const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey);
 export default function LoginPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(hasSupabaseConfig);
+  
   const supabase = useMemo(() => {
     if (!supabaseUrl || !supabaseAnonKey) return null;
-
     return createClient();
   }, []);
 
@@ -35,6 +35,20 @@ export default function LoginPage() {
     });
     return () => subscription.unsubscribe();
   }, [router, supabase]);
+
+  // 🚀 CUSTOM LOGIN FUNCTION PARA SA BRANDING MO
+  const handleGoogleLogin = async () => {
+    if (!supabase) return;
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          prompt: 'select_account', // Pinupuwersa si Google na ipakita ang Account Selection screen gamit ang Google Console client settings mo
+        }
+      }
+    });
+  };
 
   if (loading) return <div className="flex-1 bg-[#050505]" />;
 
@@ -95,30 +109,51 @@ export default function LoginPage() {
           </div>
           
           {supabase ? (
-            <div className="supabase-auth-custom-style">
-              <Auth
-                supabaseClient={supabase}
-                appearance={{ 
-                  theme: ThemeSupa,
-                  variables: {
-                    default: { 
-                      colors: { 
-                        brand: '#ec4899', 
-                        brandAccent: '#d946ef',
-                        inputBackground: '#141416',
-                        inputBorder: '#27272a',
-                        inputText: '#f4f4f5',
-                        inputPlaceholder: '#71717a'
-                      },
-                      radii: { borderRadiusButton: '12px', buttonBorderRadius: '12px', inputBorderRadius: '12px' }
+            <div className="flex flex-col space-y-4">
+              {/* 🌟 CUSTOM GOOGLE BUTTON */}
+              <button
+                onClick={handleGoogleLogin}
+                className="w-full flex items-center justify-center gap-3 bg-white hover:bg-zinc-100 text-black font-semibold text-sm py-2.5 px-4 rounded-xl transition-all duration-200 active:scale-[0.98] shadow-md"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.866-3.577-7.866-8s3.536-8 7.866-8c2.46 0 4.105 1.025 5.047 1.926l3.227-3.11C18.436 1.838 15.618 1 12.24 1 6.033 1 1 6.033 1 12.24s5.033 11.24 11.24 11.24c6.478 0 10.793-4.537 10.793-10.986 0-.743-.08-1.313-.178-1.779H12.24z"/>
+                </svg>
+                Sign in with Google
+              </button>
+
+              {/* Separator / Hati */}
+              <div className="flex items-center my-1 text-zinc-600 text-[10px] font-bold tracking-widest uppercase">
+                <div className="flex-1 h-[1px] bg-zinc-800" />
+                <span className="px-3">or use email</span>
+                <div className="flex-1 h-[1px] bg-zinc-800" />
+              </div>
+
+              {/* Supabase Form (Email at Password na lang ang handle nito) */}
+              <div className="supabase-auth-custom-style">
+                <Auth
+                  supabaseClient={supabase}
+                  appearance={{ 
+                    theme: ThemeSupa,
+                    variables: {
+                      default: { 
+                        colors: { 
+                          brand: '#ec4899', 
+                          brandAccent: '#d946ef',
+                          inputBackground: '#141416',
+                          inputBorder: '#27272a',
+                          inputText: '#f4f4f5',
+                          inputPlaceholder: '#71717a'
+                        },
+                        radii: { borderRadiusButton: '12px', buttonBorderRadius: '12px', inputBorderRadius: '12px' }
+                      }
                     }
-                  }
-                }}
-                theme="dark"
-                providers={["google"]}
-                view="sign_in"
-                redirectTo={typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined}
-              />
+                  }}
+                  theme="dark"
+                  providers={[]} // 👈 INALIS NATIN ANG "google" DITO PARA DI LUMABAS YUNG DEFAULT BUTTON NA MAY .supabase.co LINK
+                  view="sign_in"
+                  redirectTo={typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined}
+                />
+              </div>
             </div>
           ) : (
             <p className="text-center text-sm leading-relaxed text-zinc-400">
