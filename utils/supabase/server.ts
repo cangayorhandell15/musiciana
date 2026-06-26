@@ -19,11 +19,9 @@ export async function createClient() {
           cookieStore.set(name, '', { ...options, maxAge: 0 })
         },
       },
-      auth: {
-        cookieOptions: {
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-        },
+      cookieOptions: {
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
       },
     }
   )
