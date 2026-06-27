@@ -890,13 +890,14 @@ export default function RoomPage() {
   <div className="flex flex-col gap-4 w-full">
     
    {/* ROW 1: BRAND + ACTIONS */}
-<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between w-full">
+{/* BINAGO: Ginawang `flex-row items-center justify-between` para kahit mobile, isang linya lang sila at pantay ang alignment */}
+<div className="flex flex-row items-center justify-between w-full">
   <h1 className="text-sm sm:text-base md:text-xl font-black text-white tracking-[0.2em] uppercase">
     MUSICIANA
   </h1>
   
-  {/* BINAGO: pinalitan ang `self-start sm:self-auto` ng `justify-end w-full sm:w-auto` para laging nasa kanan */}
-  <div className="flex items-center gap-2 justify-end w-full sm:w-auto">
+  {/* BINAGO: Inalis ang w-full at justify-end dahil automatic na silang itutulak pakanan ng `justify-between` ng parent */}
+  <div className="flex items-center gap-2 flex-shrink-0">
     {isHost && queue.length > 0 && (
       <button
         onClick={playNext}
