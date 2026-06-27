@@ -89,7 +89,7 @@ export default function LoginPage() {
                 <span>🎵</span> The Story Behind
               </h3>
               <p className="text-zinc-400 text-xs sm:text-sm leading-relaxed italic font-normal">
-                &quot;Musiciana is a labor of love dedicated to my girlfriend, Diana. Inspired by her beautiful voice, I blended &apos;Music&apos; and &apos;Diana&apos; to create a space that celebrates her talent. I’m sharing this platform with you all, hoping you find the same joy in music and singing that she brings into my life.&quot;
+                &quot;Musiciana is a dedicated space built for anyone who loves to sing. Named after my girlfriend, Diana, and inspired by her beautiful singing voice, this platform was created to bring people together through song. Welcome, and enjoy the music.&quot;
               </p>
             </div>
           </div>
@@ -110,17 +110,31 @@ export default function LoginPage() {
           
           {supabase ? (
             <div className="flex flex-col space-y-4">
-              {/* 🌟 CUSTOM GOOGLE BUTTON */}
-              <button
-                onClick={handleGoogleLogin}
-                className="w-full flex items-center justify-center gap-3 bg-white hover:bg-zinc-100 text-black font-semibold text-sm py-2.5 px-4 rounded-xl transition-all duration-200 active:scale-[0.98] shadow-md"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path fill="#EA4335" d="M12.24 10.285V14.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.866-3.577-7.866-8s3.536-8 7.866-8c2.46 0 4.105 1.025 5.047 1.926l3.227-3.11C18.436 1.838 15.618 1 12.24 1 6.033 1 1 6.033 1 12.24s5.033 11.24 11.24 11.24c6.478 0 10.793-4.537 10.793-10.986 0-.743-.08-1.313-.178-1.779H12.24z"/>
-                </svg>
-                Sign in with Google
-              </button>
-
+                        {/* 🌟 CUSTOM GOOGLE BUTTON WITH OFFICIAL COLORS */}
+            <button
+              onClick={handleGoogleLogin}
+              className="w-full flex items-center justify-center gap-3 bg-white hover:bg-zinc-100 text-black font-semibold text-sm py-2.5 px-4 rounded-xl transition-all duration-200 active:scale-[0.98] shadow-md"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  fill="#4285F4"
+                  d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.92h6.61c-.29 1.53-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-8.58z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.11 0-5.74-2.11-6.68-4.96H1.21v3.15C3.18 21.88 7.31 24 12 24z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.32 14.24A7.16 7.16 0 0 1 5 12c0-.79.13-1.57.32-2.34V6.51H1.21A11.94 11.94 0 0 0 0 12c0 1.92.45 3.74 1.21 5.39l4.11-3.15z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.18 2.12 1.21 5.61l4.11 3.15c.94-2.85 3.57-4.96 6.68-4.96z"
+                />
+              </svg>
+              Sign in with Google
+            </button>
               {/* Separator / Hati */}
               <div className="flex items-center my-1 text-zinc-600 text-[10px] font-bold tracking-widest uppercase">
                 <div className="flex-1 h-[1px] bg-zinc-800" />

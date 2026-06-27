@@ -125,7 +125,7 @@ export default function LandingPage() {
             MUSICIANA
           </h1>
           <p className="text-lg md:text-xl text-zinc-400 mb-12 max-w-2xl mx-auto font-medium leading-relaxed">
-            Sync the vibe, sing your heart out. Real-time karaoke rooms, shared queues, and pure rhythm with friends.
+            Sync the vibe, sing your heart out. Real-time karaoke rooms, shared queues, and pure rhythm with friends and family.
           </p>
         </motion.div>
       </section>
@@ -145,9 +145,10 @@ export default function LandingPage() {
           <span className="text-[10px] uppercase font-black tracking-widest text-pink-500 bg-pink-500/10 px-3 py-1 rounded-full border border-pink-500/20">
             Reviews & Suggestions
           </span>
-          <h2 className="text-4xl font-black mt-4 mb-3 tracking-tight">We Love Your Input!</h2>
+          <h2 className="text-4xl font-black mt-4 mb-3 tracking-tight">We Love Your Feedback!</h2>
           <p className="text-zinc-400 text-sm max-w-md mx-auto leading-relaxed">
-            Help us make Musiciana better. Your feedback goes directly to our development team to enhance user experience.
+            Got ideas for Musiciana?
+Help me make this app better for you. Drop your suggestions, feature requests, or bugs below!
           </p>
         </div>
 
@@ -286,7 +287,7 @@ function AboutComponent({ activeUsers }: { activeUsers: number }) {
             <div className="inline-flex items-center gap-2 bg-zinc-900/60 border border-white/5 px-3 py-1.5 rounded-full backdrop-blur-md">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
               <span className="text-xs font-black text-zinc-300 tracking-wide">
-                {activeUsers.toLocaleString()}+ Active Members
+                {activeUsers.toLocaleString()}+ Active Users
               </span>
             </div>
           </div>
@@ -349,7 +350,7 @@ function AboutComponent({ activeUsers }: { activeUsers: number }) {
             <div>
               <h4 className="text-sm font-bold text-white mb-1 group-hover:text-pink-400 transition-colors">Vibe & Sing Along</h4>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Grab your microphone, hit play, and experience online karaoke.
+                Grab your microphone, hit play, and experience karaoke with friends or family!.
               </p>
             </div>
           </div>
@@ -365,7 +366,7 @@ function AboutComponent({ activeUsers }: { activeUsers: number }) {
             <div>
               <h4 className="text-sm font-bold text-white mb-1 group-hover:text-pink-400 transition-colors">Share Feedback</h4>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Help us fine-tune the rhythm. Let us know how we can make your session better.
+                Help me fine-tune the rhythm. Let me know how can i make your session better.
               </p>
             </div>
           </div>
