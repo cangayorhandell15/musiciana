@@ -889,31 +889,33 @@ export default function RoomPage() {
 <header className="w-full border-b border-white/5 pb-4 mb-4 sm:mb-6">
   <div className="flex flex-col gap-4 w-full">
     
-    {/* ROW 1: BRAND + ACTIONS */}
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between w-full">
-      <h1 className="text-sm sm:text-base md:text-xl font-black text-white tracking-[0.2em] uppercase">
-        MUSICIANA
-      </h1>
-      <div className="flex items-center gap-2 self-start sm:self-auto">
-        {isHost && queue.length > 0 && (
-          <button
-            onClick={playNext}
-            className="text-[11px] font-bold text-green-400 hover:bg-green-500/10 px-3 py-1.5 rounded-lg border border-green-500/20 transition-colors flex items-center gap-1"
-          >
-            <span>▶</span> <span>Next</span>
-          </button>
-        )}
-        <button
-          onClick={leaveRoom}
-          className="text-zinc-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-white/5 transition-colors"
-          title="Leave room"
-        >
-          <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden="true">
-            <path d="M3 3.75A2.25 2.25 0 0 1 5.25 1.5h7.5A2.25 2.25 0 0 1 15 3.75v16.5A2.25 2.25 0 0 1 12.75 22.5h-7.5A2.25 2.25 0 0 1 3 20.25V3.75Zm2.25-.75a.75.75 0 0 0-.75.75v16.5c0 .414.336.75.75.75h7.5a.75.75 0 0 0 .75-.75V3.75a.75.75 0 0 0-.75-.75h-7.5ZM18.28 12.53l-3.22 3.22a.75.75 0 0 1-1.06-1.06l1.47-1.47H9.75a.75.75 0 0 1 0-1.5h5.72l-1.47-1.47a.75.75 0 1 1 1.06-1.06l3.22 3.22a.75.75 0 0 1 0 1.06Z"/>
-          </svg>
-        </button>
-      </div>
-    </div>
+   {/* ROW 1: BRAND + ACTIONS */}
+<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between w-full">
+  <h1 className="text-sm sm:text-base md:text-xl font-black text-white tracking-[0.2em] uppercase">
+    MUSICIANA
+  </h1>
+  
+  {/* BINAGO: pinalitan ang `self-start sm:self-auto` ng `justify-end w-full sm:w-auto` para laging nasa kanan */}
+  <div className="flex items-center gap-2 justify-end w-full sm:w-auto">
+    {isHost && queue.length > 0 && (
+      <button
+        onClick={playNext}
+        className="text-[11px] font-bold text-green-400 hover:bg-green-500/10 px-3 py-1.5 rounded-lg border border-green-500/20 transition-colors flex items-center gap-1"
+      >
+        <span>▶</span> <span>Next</span>
+      </button>
+    )}
+    <button
+      onClick={leaveRoom}
+      className="text-zinc-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-white/5 transition-colors"
+      title="Leave room"
+    >
+      <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden="true">
+        <path d="M3 3.75A2.25 2.25 0 0 1 5.25 1.5h7.5A2.25 2.25 0 0 1 15 3.75v16.5A2.25 2.25 0 0 1 12.75 22.5h-7.5A2.25 2.25 0 0 1 3 20.25V3.75Zm2.25-.75a.75.75 0 0 0-.75.75v16.5c0 .414.336.75.75.75h7.5a.75.75 0 0 0 .75-.75V3.75a.75.75 0 0 0-.75-.75h-7.5ZM18.28 12.53l-3.22 3.22a.75.75 0 0 1-1.06-1.06l1.47-1.47H9.75a.75.75 0 0 1 0-1.5h5.72l-1.47-1.47a.75.75 0 1 1 1.06-1.06l3.22 3.22a.75.75 0 0 1 0 1.06Z"/>
+      </svg>
+    </button>
+  </div>
+</div>
 
     {/* ROW 2: CONTROLS & NOW PLAYING (Grid Layout) */}
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full">
