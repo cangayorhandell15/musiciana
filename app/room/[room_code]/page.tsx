@@ -271,7 +271,10 @@ export default function RoomPage() {
             const videoChanged =
               (prevRoom?.current_video_id ?? null) !== (newRoom?.current_video_id ?? null);
             if (videoChanged) {
-              setIsPlayerReady(false);
+            // para maiwasan ang UI locking/race conditions kapag nag-playNext ka.
+              if (currentUser?.id !== newRoom.host_id) {
+                setIsPlayerReady(false);
+              }
               void refreshQueue();
             }
             return newRoom;
@@ -882,16 +885,16 @@ export default function RoomPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#050505] text-white p-6">
-<header className="w-full border-b border-white/5 pb-4 mb-6">
+    <main className="min-h-screen bg-[#050505] text-white p-3 sm:p-6">
+<header className="w-full border-b border-white/5 pb-4 mb-4 sm:mb-6">
   <div className="flex flex-col gap-4 w-full">
     
     {/* ROW 1: BRAND + ACTIONS */}
-    <div className="flex items-center justify-between w-full">
-      <h1 className="text-base md:text-xl font-black text-white tracking-[0.2em] uppercase">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between w-full">
+      <h1 className="text-sm sm:text-base md:text-xl font-black text-white tracking-[0.2em] uppercase">
         MUSICIANA
       </h1>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 self-start sm:self-auto">
         {isHost && queue.length > 0 && (
           <button
             onClick={playNext}
@@ -916,7 +919,7 @@ export default function RoomPage() {
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full">
       
       {/* QR + CODE BOX (Takes 1 column) */}
-      <div className="bg-zinc-900/40 border border-white/5 rounded-xl p-2 flex items-center gap-3">
+      <div className="bg-zinc-900/40 border border-white/5 rounded-xl p-2 flex items-center gap-3 min-w-0">
         <div
           onClick={() => setIsQrOpen(true)}
           className="cursor-pointer bg-white rounded-md p-1 hover:scale-105 active:scale-95 transition-transform flex-shrink-0 shadow-md"
@@ -932,20 +935,20 @@ export default function RoomPage() {
             className="text-sm font-black text-pink-500 hover:text-pink-400 tracking-wider font-mono text-left group flex items-center gap-1 transition-colors"
             title="Copy"
           >
-            <span>{roomCode}</span>
+            <span className="break-all">{roomCode}</span>
             <span className="text-[10px] text-zinc-600 group-hover:text-zinc-400">⎘</span>
           </button>
         </div>
       </div>
 
       {/* NOW PLAYING BOX (Takes 2 columns on desktop for long titles) */}
-      <div className="sm:col-span-2 bg-zinc-900/40 border border-white/5 rounded-xl p-2 flex flex-col justify-center px-3">
+      <div className="sm:col-span-2 bg-zinc-900/40 border border-white/5 rounded-xl p-2 flex flex-col justify-center px-3 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-[9px] bg-pink-500/10 text-pink-400 px-1.5 py-0.5 rounded font-bold uppercase tracking-widest scale-90 origin-left">
             Now Playing
           </span>
         </div>
-        <p className="text-xs font-bold text-zinc-200 truncate mt-1">
+        <p className="text-xs font-bold text-zinc-200 mt-1 break-words whitespace-normal leading-snug">
           {currentTrackTitle || (currentVideoId ? "Loading track details…" : "Queue is empty — add a song! 🎤")}
         </p>
       </div>
@@ -992,10 +995,10 @@ export default function RoomPage() {
   )}
 
   {/* ─── MAIN ROOM GRID ─── */}
-  <div className={`grid gap-8 ${isHost ? "md:grid-cols-3" : "max-w-lg mx-auto"}`}>
+  <div className={`grid gap-4 sm:gap-8 ${isHost ? "md:grid-cols-3" : "max-w-lg mx-auto"}`}>
         {/* Video player — host only */}
         {isHost && (
-          <div className="md:col-span-2 h-[500px] bg-black rounded-2xl border border-white/5 overflow-hidden flex items-center justify-center relative">
+          <div className="md:col-span-2 h-[280px] sm:h-[360px] md:h-[500px] bg-black rounded-2xl border border-white/5 overflow-hidden flex items-center justify-center relative">
             <div className="w-full h-full">
               <div ref={ytContainerRef} className="w-full h-full" />
             </div>
@@ -1044,7 +1047,7 @@ export default function RoomPage() {
         )}
 
         {/* Queue panel — visible to everyone */}
-        <div className={`bg-zinc-900/30 rounded-2xl border border-white/5 p-4 flex flex-col ${isHost ? "h-[500px]" : "min-h-[500px]"}`}>
+        <div className={`bg-zinc-900/30 rounded-2xl border border-white/5 p-3 sm:p-4 flex flex-col ${isHost ? "min-h-[320px] md:h-[500px]" : "min-h-[320px] md:min-h-[500px]"}`}>
           {/* Non-host: show now playing status */}
           {!isHost && (
             <div className={`mb-4 px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
@@ -1110,14 +1113,14 @@ export default function RoomPage() {
                   <div
                     key={v.id.videoId}
                     onClick={() => addToQueue(v)}
-                    className="p-2 bg-zinc-800 hover:bg-pink-500/20 cursor-pointer rounded mt-2 flex items-center gap-2"
+                    className="p-2 bg-zinc-800 hover:bg-pink-500/20 cursor-pointer rounded mt-2 flex items-center gap-2 min-w-0"
                   >
                     <img
                       src={v.snippet?.thumbnails?.default?.url || "https://via.placeholder.com/40"}
-                      className="w-8 h-8 rounded"
+                      className="w-8 h-8 rounded flex-shrink-0"
                       alt={v.snippet?.title || "Karaoke video"}
                     />
-                    <p className="text-[10px] truncate">{v.snippet?.title || "Untitled"}</p>
+                    <p className="text-[10px] break-words whitespace-normal leading-tight min-w-0">{v.snippet?.title || "Untitled"}</p>
                   </div>
                 ))}
 
@@ -1146,7 +1149,7 @@ export default function RoomPage() {
                         <div
                           key={i}
                           onClick={() => !isAddingRec && addRecommendedToQueue(rec)}
-                          className={`flex items-center gap-2 p-2 bg-pink-500/5 border border-pink-500/20 rounded transition-colors ${
+                          className={`flex items-center gap-2 p-2 bg-pink-500/5 border border-pink-500/20 rounded transition-colors min-w-0 ${
                             isAddingRec 
                               ? "cursor-not-allowed opacity-50" 
                               : "hover:bg-pink-500/15 cursor-pointer"
@@ -1156,7 +1159,7 @@ export default function RoomPage() {
                             🎵
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[10px] text-zinc-200 truncate">{rec.title}</p>
+                            <p className="text-[10px] text-zinc-200 break-words whitespace-normal leading-tight">{rec.title}</p>
                             <p className="text-[9px] text-zinc-500">{rec.artist}</p>
                           </div>
                           <span className="text-pink-400 text-xs font-bold flex-shrink-0 min-w-[14px] text-center">
@@ -1177,7 +1180,7 @@ export default function RoomPage() {
                   {queue.map((s, i) => (
                     <div
                       key={s.id}
-                      className="p-2 bg-zinc-800/50 rounded flex items-center gap-2"
+                      className="p-2 bg-zinc-800/50 rounded flex items-center gap-2 min-w-0"
                     >
                       {s.thumbnail && (
                         <img
@@ -1187,7 +1190,7 @@ export default function RoomPage() {
                         />
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-[10px] truncate">{s.title}</p>
+                        <p className="text-[10px] break-words whitespace-normal leading-tight">{s.title}</p>
                         <p className="text-[9px] text-zinc-500">
                           #{i + 1}
                         </p>
