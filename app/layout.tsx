@@ -1,4 +1,4 @@
-"use client"; // Kailangan ito para magamit ang usePathname
+"use client"; // Mananatiling client component, walang masisira sa pathname routing mo!
 
 import { usePathname } from "next/navigation";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -23,13 +23,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const pathname = usePathname();
-  
-  // I-check kung ang kasalukuyang URL ay nagsisimula sa "/room"
-  // Lalabas lang ang Header at Footer kung HINDI tayo nasa loob ng room
   const isRoomPage = pathname.startsWith("/room");
 
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+      {/* DITO NATIN IPAPASOK ANG FAVICON. 
+        Kahit magpalipat-lipat ka ng page, dahil nakasulat ito mismo sa HTML Head ng layout,
+        pipilitin nitong gamitin ang icon mo imbes na ang default ng Vercel.
+      */}
+      <head>
+        <title>Musiciana</title>
+        <meta name="description" content="Sync the vibe, sing your heart out." />
+        <link rel="icon" href="/favicon.png" type="image/png" />
+        <link rel="shortcut icon" href="/favicon.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/favicon.png" />
+      </head>
+
       <body className="min-h-screen bg-zinc-950 text-white flex flex-col">
         
         {!isRoomPage && <Header />}
