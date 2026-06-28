@@ -86,7 +86,7 @@ export default function Header() {
           >
             <div className="absolute top-1/2 left-0 -translate-y-1/2 flex items-center justify-center">
               <Image 
-                src="/musicianaLogoNobg.png" 
+                src="/music1.png" 
                 alt="Musiciana Logo" 
                 width={180} 
                 height={180} 

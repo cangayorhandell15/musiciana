@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 
+// Ito ang susi para matandaan ng browser na napanood na niya ang loading screen
 const SPLASH_STORAGE_KEY = "musiciana_has_seen_splash";
 
 export default function GlobalSplash() {
@@ -13,7 +14,10 @@ export default function GlobalSplash() {
   useEffect(() => {
     setIsMounted(true);
 
+    // I-tsek kung nakita na ng user ang splash screen noon
     const hasSeenSplash = window.localStorage.getItem(SPLASH_STORAGE_KEY);
+    
+    // Kung HINDI pa niya nakikita, doon lang natin ipapakita
     if (hasSeenSplash !== "true") {
       setShowSplash(true);
     }
@@ -34,6 +38,7 @@ export default function GlobalSplash() {
 
     const timer = window.setTimeout(() => {
       setShowSplash(false);
+      // Pagkatapos ng 2.5 seconds, i-save sa browser na "true" (nakita na niya)
       window.localStorage.setItem(SPLASH_STORAGE_KEY, "true");
     }, 2500);
 
@@ -52,22 +57,17 @@ export default function GlobalSplash() {
         <motion.div
           initial={{ opacity: 1 }}
           exit={{ opacity: 0, transition: { duration: 0.5, ease: "easeInOut" } }}
-          className="fixed inset-0 z-[9999] overflow-hidden bg-black"
+          className="fixed inset-0 z-[9999] h-screen w-screen overflow-hidden bg-[#0a0a0c]"
         >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,_rgba(34,211,238,0.08),_transparent_25%),radial-gradient(circle_at_80%_20%,_rgba(236,72,153,0.08),_transparent_30%),radial-gradient(circle_at_50%_85%,_rgba(168,85,247,0.08),_transparent_35%)]" />
-          <div className="absolute inset-0 bg-black/70 sm:bg-black/60" />
-
-          <div className="relative z-10 flex h-full w-full items-center justify-center px-0 sm:px-4">
-            <div className="relative h-full w-full max-w-[100vw] max-h-[100vh]">
-              <Image
-                src="/splash/splash2.gif"
-                alt="Musiciana Loading"
-                fill
-                priority
-                unoptimized
-                className="object-contain md:object-cover"
-              />
-            </div>
+          <div className="absolute inset-0 h-full w-full">
+            <Image
+              src="/splash/music2.gif"
+              alt="Musiciana Loading"
+              fill
+              priority
+              unoptimized
+              className="object-cover object-center"
+            />
           </div>
         </motion.div>
       )}
