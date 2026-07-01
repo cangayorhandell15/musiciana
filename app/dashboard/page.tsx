@@ -50,6 +50,28 @@ export default function LandingPage() {
     init();
   }, []);
 
+  // Room Creation Logic mula sa Header.tsx
+  const handleCreateRoom = async () => {
+    if (!user) { 
+      router.push("/"); 
+      return; 
+    }
+    
+    setIsSubmitting(true);
+    const newRoomCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    
+    const { error } = await supabase
+      .from("rooms")
+      .insert([{ room_code: newRoomCode, host_id: user.id, is_playing: false }]);
+
+    if (!error) { 
+      router.push(`/room/${newRoomCode}`); 
+    } else { 
+      showToast("Error creating room! Please try again.", "error");
+    }
+    setIsSubmitting(false);
+  };
+
   const handleFeedbackSubmit = async () => {
     if (!feedback.message) return showToast("Please enter your feedback!", "error");
     
@@ -127,6 +149,38 @@ export default function LandingPage() {
           <p className="text-lg md:text-xl text-zinc-400 mb-12 max-w-2xl mx-auto font-medium leading-relaxed">
             Sync the vibe, sing your heart out. Real-time karaoke rooms, shared queues, and pure rhythm with friends and family.
           </p>
+
+          {/* DYNAMIC HERO BUTTONS */}
+          <div className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center">
+            {user ? (
+              <>
+                {/* Create Room Action */}
+                <button
+                  onClick={handleCreateRoom}
+                  disabled={isSubmitting}
+                  className="w-full sm:w-auto px-8 py-4 bg-pink-500 text-white text-xs font-black tracking-widest rounded-full hover:bg-pink-600 shadow-[0_0_30px_rgba(236,72,153,0.3)] transition-all duration-300 uppercase disabled:opacity-50"
+                >
+                  {isSubmitting ? "Creating..." : "✨ Create Room"}
+                </button>
+
+                {/* Join Room Navigation */}
+                <button
+                  onClick={() => router.push("/join_room")}
+                  className="w-full sm:w-auto px-8 py-4 bg-transparent text-white text-xs font-black tracking-widest rounded-full border border-white/20 hover:border-white hover:bg-white/5 transition-all duration-300 uppercase"
+                >
+                  🔗 Join Room
+                </button>
+              </>
+            ) : (
+              /* Fallback Prompt if Not Logged In */
+              <button
+                onClick={() => router.push("/")}
+                className="w-full sm:w-auto px-10 py-4 bg-white text-black text-xs font-black tracking-widest rounded-full hover:bg-pink-500 hover:text-white transition-all duration-300 uppercase"
+              >
+                Get Started
+              </button>
+            )}
+          </div>
         </motion.div>
       </section>
 
@@ -147,8 +201,7 @@ export default function LandingPage() {
           </span>
           <h2 className="text-4xl font-black mt-4 mb-3 tracking-tight">We Love Your Feedback!</h2>
           <p className="text-zinc-400 text-sm max-w-md mx-auto leading-relaxed">
-            Got ideas for Musiciana?
-Help me make this app better for you. Drop your suggestions, feature requests, or bugs below!
+            Got ideas for Musiciana? Help me make this app better for you. Drop your suggestions, feature requests, or bugs below!
           </p>
         </div>
 
