@@ -1193,6 +1193,11 @@ export default function RoomPage() {
                         />
                       )}
                       <div className="flex-1 min-w-0">
+                        <p className="text-[9px] text-pink-400/80 font-medium truncate">
+                          Added by {s.added_by
+                            ? (users.get(s.added_by)?.display_name ?? "Unknown")
+                            : "Unknown"}
+                        </p>
                         <p className="text-[10px] break-words whitespace-normal leading-tight">{s.title}</p>
                         <p className="text-[9px] text-zinc-500">
                           #{i + 1}
