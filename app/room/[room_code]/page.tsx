@@ -121,14 +121,15 @@ const {
   onEnded: handleSongEnded,
   onError: () => void handlePlayerError(),
   // 🎤 INTEGRATION: Dito natin ipinapasa ang metadata para sa scoring ng Mic ng Host
-  currentSongData: queue[0]
-    ? {
-        room_code: queue[0].room_code,
-        video_id: queue[0].video_id,
-        title: queue[0].title || currentTrackTitle || "Unknown Title",
-        added_by: queue[0].added_by,
-      }
-    : null,
+  currentSongData:
+    queue[0] && typeof queue[0].added_by === "string"
+      ? {
+          room_code: queue[0].room_code,
+          video_id: queue[0].video_id,
+          title: queue[0].title || currentTrackTitle || "Unknown Title",
+          added_by: queue[0].added_by,
+        }
+      : null,
 });
   // ── Queue mutations (add / remove / play next) ──────────────────────────
 // ── Queue mutations (add / remove / play next) ──────────────────────────
