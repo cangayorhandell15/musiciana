@@ -1,6 +1,12 @@
 "use client";
 
+import { useRef } from "react";
 import type { MutableRefObject } from "react";
+
+type VideoScore = {
+  title: string;
+  score: number;
+};
 
 type Props = {
   ytContainerRef: MutableRefObject<HTMLDivElement | null>;
@@ -10,6 +16,8 @@ type Props = {
   isPlayerReady: boolean;
   isMuted: boolean;
   onUnmute: () => void;
+  scoreData?: VideoScore | null;
+  showScoreOverlay?: boolean;
 };
 
 export function VideoPlayerPanel({
@@ -20,12 +28,47 @@ export function VideoPlayerPanel({
   isPlayerReady,
   isMuted,
   onUnmute,
+  scoreData,
+  showScoreOverlay = false,
 }: Props) {
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  const handleToggleFullscreen = async () => {
+    if (!panelRef.current) return;
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    } else {
+      await panelRef.current.requestFullscreen();
+    }
+  };
+
   return (
-    <div className="md:col-span-2 h-[280px] sm:h-[360px] md:h-[500px] bg-black rounded-2xl border border-white/5 overflow-hidden flex items-center justify-center relative">
+    <div ref={panelRef} className="md:col-span-2 h-[280px] sm:h-[360px] md:h-[500px] bg-black rounded-2xl border border-white/5 overflow-hidden flex items-center justify-center relative">
+      <div className="absolute right-3 top-3 z-20">
+        <button
+          type="button"
+          onClick={handleToggleFullscreen}
+          className="rounded-full border border-white/10 bg-black/70 p-2 text-xs text-white transition hover:border-pink-500/40 hover:bg-pink-500/15"
+          title="Fullscreen"
+        >
+          ⛶
+        </button>
+      </div>
       <div className="w-full h-full">
         <div ref={ytContainerRef} className="w-full h-full" />
       </div>
+
+      {scoreData && showScoreOverlay && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/90 p-6">
+          <div className="max-w-md rounded-[2rem] border border-pink-500/30 bg-zinc-950/95 p-6 text-center shadow-[0_0_50px_rgba(255,0,128,0.2)]">
+            <div className="text-5xl animate-pulse">🥁</div>
+            <p className="mt-4 text-sm uppercase tracking-[0.3em] text-pink-300">your score is...</p>
+            <p className="mt-2 text-6xl font-black text-white">{scoreData.score}</p>
+            <p className="mt-2 text-sm text-zinc-400">{scoreData.title}</p>
+            <p className="mt-4 text-xs uppercase tracking-[0.3em] text-emerald-300">Congratulations!</p>
+          </div>
+        </div>
+      )}
 
       {currentVideoId ? (
         <>

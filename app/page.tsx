@@ -25,9 +25,12 @@ export default function LoginPage() {
     if (!supabase) return;
 
     const checkUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (data.user) router.push("/dashboard");
-      else setLoading(false);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        router.push("/dashboard");
+      } else {
+        setLoading(false);
+      }
     };
     checkUser();
 

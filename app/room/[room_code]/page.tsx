@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { useRoomRealtime } from "./hooks/useRoomRealtime";
@@ -35,6 +35,10 @@ export default function RoomPage() {
 
   const [activeTab, setActiveTab] = useState<"queue" | "users">("queue");
   const [currentTrackTitle, setCurrentTrackTitle] = useState("");
+  const [latestScore, setLatestScore] = useState<{ title: string; score: number } | null>(null);
+  const [scoreOverlayVisible, setScoreOverlayVisible] = useState(false);
+  const scoreTimeoutRef = useRef<number | null>(null);
+  const playNextRef = useRef<(() => Promise<void>) | null>(null);
   const [isQrOpen, setIsQrOpen] = useState(false);
   const [qrSize, setQrSize] = useState(240);
 
@@ -58,30 +62,74 @@ export default function RoomPage() {
   const currentVideoId = room?.current_video_id?.trim() ?? "";
   const canPlayCurrentVideo = YOUTUBE_VIDEO_ID_PATTERN.test(currentVideoId);
 
-// ── YouTube player ───────────────────────────────────────────────────────
-  const {
-    ytContainerRef,
-    isPlayerReady,
-    isMuted,
-    setIsMuted,
-    isVideoRestricted,
-    markPlayerNotReady,
-    markVideoRestricted,
-    markPlayerReady, // <--- IDAGDAG ITONG LINYA NA ITO
-  } = useYouTubePlayer({
-    currentVideoId,
-    canPlayCurrentVideo,
-    isHost,
-    isTransferringHost,
-   onEnded: () => {
-      if (isHost) {
-        markPlayerReady(); // <--- TAWAGIN ITO BAGO MAG-PLAYNEXT
-        void playNext();
+  useEffect(() => {
+    return () => {
+      if (scoreTimeoutRef.current) {
+        window.clearTimeout(scoreTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    setLatestScore(null);
+    setScoreOverlayVisible(false);
+    if (scoreTimeoutRef.current) {
+      window.clearTimeout(scoreTimeoutRef.current);
+      scoreTimeoutRef.current = null;
+    }
+  }, [currentVideoId]);
+
+  const handleSongEnded = useCallback(
+    (score?: number) => {
+      const completedSongTitle = queueRef.current[0]?.title || currentTrackTitle || "Last song";
+      if (typeof score === "number") {
+        setLatestScore({ title: completedSongTitle, score });
+        setScoreOverlayVisible(true);
+        if (scoreTimeoutRef.current) {
+          window.clearTimeout(scoreTimeoutRef.current);
+        }
+        scoreTimeoutRef.current = window.setTimeout(() => {
+          setScoreOverlayVisible(false);
+          scoreTimeoutRef.current = null;
+          if (isHost && playNextRef.current) {
+            void playNextRef.current();
+          }
+        }, 3000);
+      } else if (isHost && playNextRef.current) {
+        void playNextRef.current();
       }
     },
-    onError: () => void handlePlayerError(),
-  });
+    [currentTrackTitle, isHost]
+  );
 
+// ── YouTube player ───────────────────────────────────────────────────────
+// KUMPLETO AT REFACTOR-ED NA CODE PARA SA page.tsx:
+const {
+  ytContainerRef,
+  isPlayerReady,
+  isMuted,
+  setIsMuted,
+  isVideoRestricted,
+  markPlayerNotReady,
+  markPlayerReady,
+  markVideoRestricted,
+} = useYouTubePlayer({
+  currentVideoId,
+  canPlayCurrentVideo,
+  isHost,
+  isTransferringHost,
+  onEnded: handleSongEnded,
+  onError: () => void handlePlayerError(),
+  // 🎤 INTEGRATION: Dito natin ipinapasa ang metadata para sa scoring ng Mic ng Host
+  currentSongData: queue[0]
+    ? {
+        room_code: queue[0].room_code,
+        video_id: queue[0].video_id,
+        title: queue[0].title || currentTrackTitle || "Unknown Title",
+        added_by: queue[0].added_by,
+      }
+    : null,
+});
   // ── Queue mutations (add / remove / play next) ──────────────────────────
 // ── Queue mutations (add / remove / play next) ──────────────────────────
 const { addToQueue, removeFromQueue, playNext, handlePlayerError } = useQueueActions({
@@ -101,6 +149,10 @@ const { addToQueue, removeFromQueue, playNext, handlePlayerError } = useQueueAct
   markPlayerReady, // <--- DIRETSO MO NANG IPASA NA GANITO (Mawawala na ang ReferenceError!)
   markVideoRestricted,
 });
+
+useEffect(() => {
+  playNextRef.current = playNext;
+}, [playNext]);
 
   // ── Search + recommendations ────────────────────────────────────────────
   const {
@@ -125,12 +177,11 @@ const { addToQueue, removeFromQueue, playNext, handlePlayerError } = useQueueAct
     [addToQueue, setSearchResults, setSearchQuery]
   );
 
- // BAGO AT TAMA: Magre-refresh kapag lumipat ng kanta o kapag binuksan ang tab
-useEffect(() => {
-  if (activeTab === "queue") {
-    void fetchRecommendations();
-  }
-}, [activeTab, currentVideoId, fetchRecommendations]);
+  useEffect(() => {
+    if (activeTab === "queue" && recommendations.length === 0) {
+      void fetchRecommendations();
+    }
+  }, [activeTab, recommendations.length, fetchRecommendations]);
 
   // Responsive QR size for the modal.
   useEffect(() => {
@@ -193,6 +244,7 @@ useEffect(() => {
         <QrModal roomCode={roomCode} roomUrl={roomUrl} qrSize={qrSize} onClose={() => setIsQrOpen(false)} />
       )}
 
+
       <div className={`grid gap-4 sm:gap-8 ${isHost ? "md:grid-cols-3" : "max-w-lg mx-auto"}`}>
         {isHost && (
           <VideoPlayerPanel
@@ -206,6 +258,8 @@ useEffect(() => {
               setIsMuted(false);
               void supabase.from("rooms").update({ is_playing: true }).eq("room_code", roomCode);
             }}
+            scoreData={latestScore}
+            showScoreOverlay={scoreOverlayVisible}
           />
         )}
 

@@ -1,13 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import type { YTPlayerInstance } from "../types";
+import { useMicScoring } from "./useMicScoring"; // I-import ang ginawa nating mic engine
+
+// Gumawa ng structure para sa kasalukuyang kanta mula sa queue table mo
+type CurrentSongProps = {
+  room_code: string;
+  video_id: string;
+  title: string;
+  added_by: string;
+};
 
 type Params = {
   currentVideoId: string;
   canPlayCurrentVideo: boolean;
   isHost: boolean;
   isTransferringHost: boolean;
-  onEnded: () => void;
+  onEnded: (score?: number) => void;
   onError: () => void;
+  currentSongData: CurrentSongProps | null; // Idinagdag para may access ang hook sa added_by ng queue
 };
 
 /**
@@ -23,10 +33,14 @@ export function useYouTubePlayer({
   isTransferringHost,
   onEnded,
   onError,
+  currentSongData, // Tinanggap ang data ng kanta rito
 }: Params) {
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [restrictedVideoIds, setRestrictedVideoIds] = useState<Set<string>>(new Set());
+
+  // Kuhanin ang microphone functions mula sa scoring engine hook
+  const { startHostMicrophone, stopHostMicrophoneAndSave } = useMicScoring();
 
   const isVideoRestricted = restrictedVideoIds.has(currentVideoId);
 
@@ -59,31 +73,48 @@ export function useYouTubePlayer({
         testedVideoRef.current = null;
       }
     };
-   // BAGONG CODE - Ipalit sa onPlayerStateChangeRef.current
-onPlayerStateChangeRef.current = (state: number) => {
-  if (isTransferringHost) return;
-  
-  if (state === window.YT.PlayerState.ENDED) {
-    // Siguraduhing burado ang loading overlay kapag tapos na
-    setIsPlayerReady(true); 
-    onEndedRef.current();
-  } else if (
-    state === window.YT.PlayerState.PLAYING || 
-    state === window.YT.PlayerState.BUFFERING ||
-    state === window.YT.PlayerState.CUED
-  ) {
-    setIsPlayerReady(true);
-    testedVideoRef.current = null;
-  }
-};
-  }, [currentVideoId, isTransferringHost]);
+
+    // --- INTEGRATION NG AUDIO ANALYZER SA PLAYER STATE CHANGES ---
+    onPlayerStateChangeRef.current = (state: number) => {
+      if (isTransferringHost) return;
+
+      if (state === window.YT.PlayerState.ENDED) {
+        setIsPlayerReady(true);
+
+        // 🎤 TAPOS NA ANG KANTA: Patayin ang mic ng host at awtomatikong i-save sa database
+        if (isHost && currentSongData) {
+          void stopHostMicrophoneAndSave({
+            room_code: currentSongData.room_code,
+            video_id: currentSongData.video_id,
+            title: currentSongData.title,
+            added_by: currentSongData.added_by, // Dito natin tinatali sa kung sino ang nag-queue
+          }).then((score) => {
+            onEndedRef.current(score);
+          });
+        } else {
+          onEndedRef.current();
+        }
+      } else if (state === window.YT.PlayerState.PLAYING) {
+        setIsPlayerReady(true);
+        testedVideoRef.current = null;
+
+        // 🎤 NAGSIMULA ANG KANTA: Pagka-play na pagka-play ng YouTube, makikinig na ang mic ng Host
+        if (isHost) {
+          startHostMicrophone();
+        }
+      } else if (
+        state === window.YT.PlayerState.BUFFERING ||
+        state === window.YT.PlayerState.CUED
+      ) {
+        setIsPlayerReady(true);
+        testedVideoRef.current = null;
+      }
+    };
+    // Isinama sa dependency array ang currentSongData para laging updated ang reference ng user id
+  }, [currentVideoId, isTransferringHost, isHost, currentSongData, startHostMicrophone, stopHostMicrophoneAndSave]);
 
   // Safety net: onReady/onStateChange skip updating isPlayerReady while
   // isTransferringHost is true (to avoid acting on a stale hand-off).
-  // If that window closes while a player already exists, the video is
-  // almost certainly already playing underneath — don't leave the
-  // "Loading..." overlay stuck forever waiting for an event that may
-  // never fire again during smooth playback.
   useEffect(() => {
     if (!isTransferringHost && ytPlayerRef.current) {
       setIsPlayerReady(true);
@@ -140,7 +171,8 @@ onPlayerStateChangeRef.current = (state: number) => {
           modestbranding: 1,
           rel: 0,
           autoplay: 1,
-          controls: isHost ? 1 : 0,
+          controls: 0,
+          disablekb: 1,
         },
         events: {
           onReady: (event) => {
@@ -204,8 +236,7 @@ onPlayerStateChangeRef.current = (state: number) => {
     testedVideoRef.current = null;
   }, [currentVideoId]);
 
-  // A video that never calls onReady/onStateChange within 12s gets
-  // marked restricted so the host's queue can move on.
+  // A video that never calls onReady/onStateChange within 12s gets marked restricted
   useEffect(() => {
     if (!currentVideoId || isVideoRestricted) {
       testedVideoRef.current = null;
@@ -226,14 +257,10 @@ onPlayerStateChangeRef.current = (state: number) => {
     return () => clearTimeout(timeoutId);
   }, [currentVideoId, isVideoRestricted]);
 
-// ...iyong mga dating useEffect sa itaas nito...
-
   const markPlayerNotReady = () => setIsPlayerReady(false);
   const markVideoRestricted = (videoId: string) =>
     setRestrictedVideoIds((prev) => new Set(prev).add(videoId));
-
-  // 1. IDAGDAG ITONG LINYA NA ITO RITO:
-  const markPlayerReady = () => setIsPlayerReady(true); 
+  const markPlayerReady = () => setIsPlayerReady(true);
 
   return {
     ytContainerRef,
@@ -243,6 +270,6 @@ onPlayerStateChangeRef.current = (state: number) => {
     isVideoRestricted,
     markPlayerNotReady,
     markVideoRestricted,
-    markPlayerReady, // 2. ISAMA ITONG LINYA NA ITO SA RETURN OBJECT
+    markPlayerReady,
   };
 }
