@@ -8,28 +8,31 @@ const supabase = createClient(
 
 export async function POST() {
   try {
-    // Kukuha ng hanggang 30 na kanta mula sa database cache mo
+    // 1. Lakihan ang limit (hal. 200) para mas malawak ang pool ng kanta na pwedeng pagpilian mula sa DB cache
     const { data: cachedSongs, error } = await supabase
       .from('songs')
       .select('title')
-      .limit(30);
+      .limit(200);
 
-    // Kung nag-error o walang laman ang database, magbalik ng empty array sa page.tsx
+    // Kung nag-error o walang laman ang database, magbalik ng empty array
     if (error || !cachedSongs || cachedSongs.length === 0) {
       return NextResponse.json({
         content: [{ type: "text", text: JSON.stringify([]) }]
       });
     }
 
-    // I-shuffle ang mga kanta mula sa DB at kumuha ng 4
-    const shuffled = cachedSongs.sort(() => 0.5 - Math.random()).slice(0, 4);
+    // 2. Gumawa ng shallow copy at i-shuffle gamit ang isang mas agresibong random sorter
+    const shuffled = [...cachedSongs]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 4); // Kumuha ng 4 na random na kanta
     
-    // Ibalik ang buong orihinal na pamagat para mahanap ulit nang tumpak sa YouTube search
+    // 3. I-format ang output para tugma sa inaasahan ng useKaraokeSearch hook
     const formattedSongs = shuffled.map(song => ({
-      title: song.title, // Buong pamagat na galing mismo sa YouTube dati
-      artist: ""         // Iwanang blanko dahil kasama na sa title ang detalye
+      title: song.title, // Buong pamagat na galing sa YouTube na may detalye
+      artist: ""         // Iwanang blanko dahil kasama na sa pamagat ang pangalan ng singer
     }));
 
+    // 4. Ibalik ang JSON string sa loob ng content array (sinusunod ang nakaraang LLM component string format)
     return NextResponse.json({
       content: [{ type: "text", text: JSON.stringify(formattedSongs) }]
     });
