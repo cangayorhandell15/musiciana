@@ -15,19 +15,22 @@ export function useMicScoring() {
   const sessionScoresRef = useRef<number[]>([]);
   const animationFrameIdRef = useRef<number | null>(null);
 
-  // 1. Simulan ang pakikinig sa mic ng Host kapag nag-play ang video
-  async function startHostMicrophone() {
-    try {
-      // Humingi ng permiso sa microphone gamit ang safe constraints
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true
-        } 
-      });
-      
-      micStreamRef.current = stream;
-      setHasMic(true); // 🎉 May mic na nahanap!
+
+ // 1. Simulan ang pakikinig sa mic ng Host kapag nag-play ang video
+async function startHostMicrophone() {
+  try {
+    // Humingi ng permiso sa microphone gamit ang basic configuration
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+      audio: {
+        echoCancellation: false,  // ❌ I-OFF para hindi pumasok sa Call Mode ang CP
+        noiseSuppression: false,   // ❌ I-OFF para maging pure audio data lang ang pasok
+        autoGainControl: false     // ❌ I-OFF para hindi baguhin ng CP ang volume ng mic
+      } 
+    });
+    
+    micStreamRef.current = stream;
+    setHasMic(true);
+    // ... ang natitirang bahagi ng code mo ay pareho pa rin
 
       // FIX sa error sa 'any': Ginamitan ng explicit standard types para sa older webkit browsers
       const AudioContextClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
