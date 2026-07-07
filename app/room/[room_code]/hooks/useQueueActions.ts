@@ -19,6 +19,7 @@ type Params = {
   markPlayerNotReady: () => void;
   markPlayerReady: () => void; // 1. Idinagdag ito rito
   markVideoRestricted: (videoId: string) => void;
+  bumpPlayToken: () => void;
 };
 
 /**
@@ -42,6 +43,7 @@ export function useQueueActions({
   markPlayerNotReady,
   markPlayerReady, // 2. I-destructure ito rito
   markVideoRestricted,
+  bumpPlayToken,
 }: Params) {
   const addToQueue = useCallback(
     async (video: YouTubeVideo) => {
@@ -87,18 +89,32 @@ export function useQueueActions({
     [supabase, setQueue, refreshQueue]
   );
 
-  const playNext = useCallback(async () => {
-    const nextSong = queueRef.current.find((s) => !s.id.startsWith("temp-"));
+const playNext = useCallback(async () => {
+  const nextSong = queueRef.current.find((s) => !s.id.startsWith("temp-"));
 
-    if (!nextSong) {
-      // 3. Ginamit ang markPlayerReady() para alisin ang loading overlay
-      markPlayerReady(); 
-      await supabase.from("rooms").update({ current_video_id: null, is_playing: false }).eq("room_code", roomCode);
-      await refreshQueue();
-      return;
-    }
+  if (!nextSong) {
+    // 1. Agad na gawing true ang Player Ready para patayin ang spinner sa UI
+    markPlayerReady();
+    
+    // 2. Linisin ang local state bago ang DB operation para instant ang pagbabago sa Screen
+    setCurrentTrackTitle("");
+    setRoom((prev) => (prev ? { ...prev, current_video_id: null, is_playing: false } : prev));
+    
+    // 3. I-update ang database
+    await supabase.from("rooms").update({ current_video_id: null, is_playing: false }).eq("room_code", roomCode);
+    await refreshQueue();
+    return;
+  }
+  
+  // ... ang natitirang code para sa may kasunod na kanta
 
     markPlayerNotReady();
+    // Bump the play token BEFORE flipping current_video_id: this guarantees
+    // useYouTubePlayer treats this as a new play attempt even when
+    // nextSong.video_id happens to equal the video that just ended (same
+    // song queued back-to-back), instead of silently no-op'ing because
+    // currentVideoId didn't change.
+    bumpPlayToken();
     setRoom((prev) => (prev ? { ...prev, current_video_id: nextSong.video_id, is_playing: true } : prev));
     setQueue((prev) => prev.filter((s) => String(s.id) !== String(nextSong.id)));
     setCurrentTrackTitle(nextSong.title);
@@ -115,7 +131,7 @@ export function useQueueActions({
       alert("Nagka-error sa pag-play ng kanta.");
       await refreshQueue();
     }
-  }, [queueRef, supabase, roomCode, refreshQueue, markPlayerReady, markPlayerNotReady, setRoom, setQueue, setCurrentTrackTitle]);
+  }, [queueRef, supabase, roomCode, refreshQueue, markPlayerReady, markPlayerNotReady, bumpPlayToken, setRoom, setQueue, setCurrentTrackTitle]);
 
   const handlePlayerError = useCallback(async () => {
     markPlayerNotReady();

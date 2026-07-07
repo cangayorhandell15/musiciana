@@ -12,6 +12,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const NAV_ITEMS = ["Home", "About", "Feedback", "Contact"];
 const NAV_TARGET_PATH = "/dashboard";
+const LEADERBOARD_PATH = "/leaderboard";
 
 export default function Header() {
   const router = useRouter();
@@ -163,6 +164,13 @@ export default function Header() {
                           className="w-full text-left px-4 py-2 text-xs font-bold text-white hover:bg-white/5 transition-colors flex items-center gap-2"
                         >
                           🔗 JOIN ROOM
+                        </button>
+
+                        <button
+                          onClick={() => { router.push(LEADERBOARD_PATH); setIsDropdownOpen(false); }}
+                          className="w-full text-left px-4 py-2 text-xs font-bold text-white hover:bg-white/5 transition-colors flex items-center gap-2"
+                        >
+                          🏆 LEADERBOARD
                         </button>
                         
                         <hr className="border-white/5 my-1" />

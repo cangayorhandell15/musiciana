@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { YTPlayerInstance } from "../types";
 import { useMicScoring } from "./useMicScoring"; // I-import ang ginawa nating mic engine
 
@@ -8,10 +8,12 @@ type CurrentSongProps = {
   video_id: string;
   title: string;
   added_by: string;
+  added_by_name?: string | null;
 };
 
 type Params = {
   currentVideoId: string;
+  playToken?: number;
   canPlayCurrentVideo: boolean;
   isHost: boolean;
   isTransferringHost: boolean;
@@ -28,6 +30,7 @@ type Params = {
  */
 export function useYouTubePlayer({
   currentVideoId,
+  playToken = 0,
   canPlayCurrentVideo,
   isHost,
   isTransferringHost,
@@ -44,10 +47,37 @@ export function useYouTubePlayer({
 
   const isVideoRestricted = restrictedVideoIds.has(currentVideoId);
 
+  // A single key that changes on EVERY new "play" attempt, even when the
+  // same video_id is queued back-to-back (e.g. the same song added twice).
+  // currentVideoId alone doesn't change in that case, which used to leave
+  // the player-creation effect skipped entirely -> isPlayerReady stuck at
+  // false forever after playNext() called markPlayerNotReady().
+  const playKey = `${currentVideoId}::${playToken}`;
+
   const ytContainerRef = useRef<HTMLDivElement | null>(null);
   const ytPlayerRef = useRef<YTPlayerInstance | null>(null);
   const ytApiReadyRef = useRef(false);
   const testedVideoRef = useRef<string | null>(null);
+  const readyFallbackTimeoutRef = useRef<number | null>(null);
+  const readyFallbackTriggeredRef = useRef(false);
+
+  const clearReadyFallbackTimeout = useCallback(() => {
+    if (readyFallbackTimeoutRef.current) {
+      window.clearTimeout(readyFallbackTimeoutRef.current);
+      readyFallbackTimeoutRef.current = null;
+    }
+  }, []);
+
+  const setPlayerReadyWithFallbackClear = useCallback(() => {
+    clearReadyFallbackTimeout();
+    readyFallbackTriggeredRef.current = false;
+    setIsPlayerReady(true);
+  }, [clearReadyFallbackTimeout]);
+
+  const resetPlayerReadyWithFallback = useCallback(() => {
+    clearReadyFallbackTimeout();
+    setIsPlayerReady(false);
+  }, [clearReadyFallbackTimeout]);
 
   const prevIsHostRef = useRef(isHost);
   useEffect(() => {
@@ -69,7 +99,7 @@ export function useYouTubePlayer({
   useEffect(() => {
     onPlayerReadyRef.current = () => {
       if (!isTransferringHost) {
-        setIsPlayerReady(true);
+        setPlayerReadyWithFallbackClear();
         testedVideoRef.current = null;
       }
     };
@@ -79,7 +109,7 @@ export function useYouTubePlayer({
       if (isTransferringHost) return;
 
       if (state === window.YT.PlayerState.ENDED) {
-        setIsPlayerReady(true);
+        setPlayerReadyWithFallbackClear();
 
         // 🎤 TAPOS NA ANG KANTA: Patayin ang mic ng host at awtomatikong i-save sa database
         if (isHost && currentSongData) {
@@ -88,6 +118,7 @@ export function useYouTubePlayer({
             video_id: currentSongData.video_id,
             title: currentSongData.title,
             added_by: currentSongData.added_by, // Dito natin tinatali sa kung sino ang nag-queue
+            added_by_name: currentSongData.added_by_name,
           }).then((score) => {
             onEndedRef.current(score);
           });
@@ -95,7 +126,7 @@ export function useYouTubePlayer({
           onEndedRef.current();
         }
       } else if (state === window.YT.PlayerState.PLAYING) {
-        setIsPlayerReady(true);
+        setPlayerReadyWithFallbackClear();
         testedVideoRef.current = null;
 
         // 🎤 NAGSIMULA ANG KANTA: Pagka-play na pagka-play ng YouTube, makikinig na ang mic ng Host
@@ -106,12 +137,12 @@ export function useYouTubePlayer({
         state === window.YT.PlayerState.BUFFERING ||
         state === window.YT.PlayerState.CUED
       ) {
-        setIsPlayerReady(true);
+        setPlayerReadyWithFallbackClear();
         testedVideoRef.current = null;
       }
     };
     // Isinama sa dependency array ang currentSongData para laging updated ang reference ng user id
-  }, [currentVideoId, isTransferringHost, isHost, currentSongData, startHostMicrophone, stopHostMicrophoneAndSave]);
+  }, [currentVideoId, isTransferringHost, isHost, currentSongData, startHostMicrophone, stopHostMicrophoneAndSave, setPlayerReadyWithFallbackClear]);
 
   // Safety net: onReady/onStateChange skip updating isPlayerReady while
   // isTransferringHost is true (to avoid acting on a stale hand-off).
@@ -138,74 +169,129 @@ export function useYouTubePlayer({
     };
   }, []);
 
+  const createOrReloadPlayer = () => {
+    if (!ytContainerRef.current) return;
+
+    if (ytPlayerRef.current) {
+      try {
+        ytPlayerRef.current.destroy();
+      } catch {
+        // ignore
+      }
+      ytPlayerRef.current = null;
+    }
+
+    resetPlayerReadyWithFallback();
+
+    ytPlayerRef.current = new window.YT.Player(ytContainerRef.current, {
+      videoId: currentVideoId,
+      playerVars: {
+        modestbranding: 1,
+        rel: 0,
+        autoplay: 1,
+        controls: 0,
+        disablekb: 1,
+      },
+      events: {
+        onReady: (event) => {
+          try {
+            event.target.mute();
+          } catch (error) {
+            console.warn("YouTube mute failed:", error);
+          }
+          try {
+            event.target.playVideo();
+          } catch (error) {
+            console.warn("YouTube autoplay blocked or failed:", error);
+          }
+          onPlayerReadyRef.current();
+        },
+        onStateChange: (event) => onPlayerStateChangeRef.current(event.data),
+        onError: () => onErrorRef.current(),
+      },
+    });
+  };
+
   // Create / reload the player whenever the video changes.
+  // Polls for BOTH the YT IFrame API *and* the container div, since the
+  // container only exists once VideoPlayerPanel (gated on isHost) has
+  // mounted — on the very first song these can flip true in the same
+  // tick that currentVideoId first becomes non-empty, so a single
+  // "container missing -> silently give up" check isn't enough.
   useEffect(() => {
     if (!canPlayCurrentVideo || isVideoRestricted || !currentVideoId) return;
 
+    let cancelled = false;
     let pollId: number | undefined;
 
-    const loadOrCreate = () => {
-      if (!ytContainerRef.current) return;
-
-      if (ytPlayerRef.current) {
-        const hostChanged = prevIsHostRef.current !== isHost;
-        if (!hostChanged) {
-          try {
-            ytPlayerRef.current.loadVideoById(currentVideoId);
-            return;
-          } catch (e) {
-            console.warn("[yt-player] loadVideoById failed, recreating player:", e);
-          }
-        }
-        try {
-          ytPlayerRef.current.destroy();
-        } catch {
-          // ignore
-        }
-        ytPlayerRef.current = null;
-      }
-
-      ytPlayerRef.current = new window.YT.Player(ytContainerRef.current, {
-        videoId: currentVideoId,
-        playerVars: {
-          modestbranding: 1,
-          rel: 0,
-          autoplay: 1,
-          controls: 0,
-          disablekb: 1,
-        },
-        events: {
-          onReady: (event) => {
-            if (isMuted) event.target.mute();
-            event.target.playVideo();
-            onPlayerReadyRef.current();
-          },
-          onStateChange: (event) => onPlayerStateChangeRef.current(event.data),
-          onError: () => onErrorRef.current(),
-        },
-      });
+    const tryCreate = () => {
+      if (cancelled) return false;
+      if (!ytApiReadyRef.current || !ytContainerRef.current) return false;
+      createOrReloadPlayer();
+      return true;
     };
 
-    if (ytApiReadyRef.current) {
-      loadOrCreate();
-    } else {
+    if (!tryCreate()) {
       pollId = window.setInterval(() => {
-        if (ytApiReadyRef.current) {
+        if (tryCreate() && pollId) {
           window.clearInterval(pollId);
-          loadOrCreate();
         }
       }, 100);
     }
 
     return () => {
+      cancelled = true;
       if (pollId) window.clearInterval(pollId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentVideoId, canPlayCurrentVideo, isVideoRestricted, isHost]);
+  }, [currentVideoId, playKey, canPlayCurrentVideo, isVideoRestricted, isHost]);
+
+  // Independent safety-net timer: forces the loading overlay to clear
+  // after 1.5s no matter what happened above (API never loaded, container
+  // was slow to mount, event never fired, etc). Kept in its own effect,
+  // separate from the polling/creation effect, so it can't get silently
+  // dropped by an unrelated cleanup, and it reads isPlayerReady live via
+  // the functional setState form instead of a stale closure.
+  useEffect(() => {
+    let initReadyTimer: number | undefined;
+
+    if (!canPlayCurrentVideo || isVideoRestricted || !currentVideoId) {
+      // KUNG WALANG KANTA, DAPAT READY ANG PLAYER (WALANG LOADING OVERLAY)
+      clearReadyFallbackTimeout();
+      readyFallbackTriggeredRef.current = false;
+      initReadyTimer = window.setTimeout(() => {
+        setIsPlayerReady(true);
+      }, 0);
+      return () => {
+        if (initReadyTimer) {
+          window.clearTimeout(initReadyTimer);
+        }
+      };
+    }
+
+    readyFallbackTriggeredRef.current = false;
+    clearReadyFallbackTimeout();
+
+    readyFallbackTimeoutRef.current = window.setTimeout(() => {
+      setIsPlayerReady((ready) => {
+        if (ready) return ready;
+        readyFallbackTriggeredRef.current = true;
+        console.warn("YouTube player ready fallback triggered for", currentVideoId);
+        return true;
+      });
+    }, 1500);
+
+    return () => {
+      clearReadyFallbackTimeout();
+      if (initReadyTimer) {
+        window.clearTimeout(initReadyTimer);
+      }
+    };
+  }, [currentVideoId, playKey, canPlayCurrentVideo, isVideoRestricted, clearReadyFallbackTimeout]);
 
   // Mute / unmute the live player when isMuted toggles.
   useEffect(() => {
-    if (!ytPlayerRef.current || !isPlayerReady) return;
+    if (!ytPlayerRef.current) return;
     try {
       if (isMuted) {
         ytPlayerRef.current.mute();
@@ -215,7 +301,7 @@ export function useYouTubePlayer({
     } catch (e) {
       console.warn("[yt-player] mute/unmute call failed (safe to ignore):", e);
     }
-  }, [isMuted, isPlayerReady]);
+  }, [isMuted]);
 
   // Destroy the player on unmount.
   useEffect(() => {
@@ -231,10 +317,10 @@ export function useYouTubePlayer({
     };
   }, []);
 
-  // Reset the "loading" title whenever the video changes.
+  // Reset the "loading" title whenever the video changes (or replays).
   useEffect(() => {
     testedVideoRef.current = null;
-  }, [currentVideoId]);
+  }, [playKey]);
 
   // A video that never calls onReady/onStateChange within 12s gets marked restricted
   useEffect(() => {
@@ -242,9 +328,9 @@ export function useYouTubePlayer({
       testedVideoRef.current = null;
       return;
     }
-    if (testedVideoRef.current === currentVideoId) return;
+    if (testedVideoRef.current === playKey) return;
 
-    testedVideoRef.current = currentVideoId;
+    testedVideoRef.current = playKey;
 
     const timeoutId = window.setTimeout(() => {
       setIsPlayerReady((ready) => {
@@ -255,12 +341,14 @@ export function useYouTubePlayer({
     }, 12000);
 
     return () => clearTimeout(timeoutId);
-  }, [currentVideoId, isVideoRestricted]);
+  }, [currentVideoId, playKey, isVideoRestricted]);
 
-  const markPlayerNotReady = () => setIsPlayerReady(false);
-  const markVideoRestricted = (videoId: string) =>
-    setRestrictedVideoIds((prev) => new Set(prev).add(videoId));
-  const markPlayerReady = () => setIsPlayerReady(true);
+  const markPlayerNotReady = useCallback(() => setIsPlayerReady(false), []);
+  const markVideoRestricted = useCallback(
+    (videoId: string) => setRestrictedVideoIds((prev) => new Set(prev).add(videoId)),
+    []
+  );
+  const markPlayerReady = useCallback(() => setIsPlayerReady(true), []);
 
   return {
     ytContainerRef,

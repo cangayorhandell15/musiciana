@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 
 type VideoScore = {
@@ -32,6 +32,36 @@ export function VideoPlayerPanel({
   showScoreOverlay = false,
 }: Props) {
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const [showLoadingOverlay, setShowLoadingOverlay] = useState(false);
+  const loadingTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (isPlayerReady) {
+      if (loadingTimeoutRef.current) {
+        window.clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+      setShowLoadingOverlay(false);
+      return;
+    }
+
+    if (!currentVideoId || !canPlayCurrentVideo || isVideoRestricted) {
+      setShowLoadingOverlay(false);
+      return;
+    }
+
+    loadingTimeoutRef.current = window.setTimeout(() => {
+      setShowLoadingOverlay(true);
+      loadingTimeoutRef.current = null;
+    }, 300);
+
+    return () => {
+      if (loadingTimeoutRef.current) {
+        window.clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+    };
+  }, [currentVideoId, canPlayCurrentVideo, isVideoRestricted, isPlayerReady]);
 
   const handleToggleFullscreen = async () => {
     if (!panelRef.current) return;
@@ -82,7 +112,7 @@ export function VideoPlayerPanel({
               <p className="text-xs text-zinc-500">Skipping unavailable video...</p>
             </div>
           ) : (
-            !isPlayerReady && (
+            !isPlayerReady && showLoadingOverlay && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10 gap-2">
                 <div className="text-4xl animate-pulse">⏳</div>
                 <p className="text-xs text-zinc-400">Loading video...</p>

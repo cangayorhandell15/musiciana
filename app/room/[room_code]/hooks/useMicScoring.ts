@@ -12,7 +12,9 @@ export function useMicScoring() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
-  const sessionScoresRef = useRef<number[]>([]);
+  const sessionPitchScoresRef = useRef<number[]>([]);
+  const sessionRhythmScoresRef = useRef<number[]>([]);
+  const previousEnergyRef = useRef<number>(0);
   const animationFrameIdRef = useRef<number | null>(null);
 
 
@@ -50,7 +52,9 @@ async function startHostMicrophone() {
       source.connect(analyser);
 
       setIsSinging(true);
-      sessionScoresRef.current = []; // I-reset ang scores para sa bagong kanta
+      sessionPitchScoresRef.current = [];
+      sessionRhythmScoresRef.current = [];
+      previousEnergyRef.current = 0;
 
       console.log("🎤 Host microphone successfully connected and analyzing pitch...");
 
@@ -63,15 +67,25 @@ async function startHostMicrophone() {
 
         const pitch = autoCorrelate(buffer, audioContextRef.current.sampleRate);
         const rms = getRMS(buffer);
-        const hasValidVoice = pitch !== -1 && rms >= 0.02;
+        const energy = rms;
+        const hasValidVoice = energy >= 0.006;
 
         if (hasValidVoice) {
           console.log(`Pitch Detected: ${Math.round(pitch)} Hz  |  RMS: ${rms.toFixed(4)}`);
-          const normalizedRms = Math.min(1, Math.max(0, (rms - 0.02) / 0.18));
-          const scoreFromEnergy = Math.round(60 + normalizedRms * 40);
-          sessionScoresRef.current.push(scoreFromEnergy);
+
+          const normalizedRms = Math.min(1, Math.max(0, (energy - 0.006) / 0.18));
+          const pitchScore = Math.round(1 + normalizedRms * 99);
+
+          const energyDelta = energy - previousEnergyRef.current;
+          const motion = Math.min(1, Math.abs(energyDelta) / 0.08);
+          const stability = Math.min(1, energy / 0.2);
+          const rhythmScore = Math.round(1 + Math.min(1, stability * 0.5 + motion * 0.5) * 99);
+
+          previousEnergyRef.current = energy;
+          sessionPitchScoresRef.current.push(pitchScore);
+          sessionRhythmScoresRef.current.push(rhythmScore);
         } else {
-          sessionScoresRef.current.push(0);
+          previousEnergyRef.current = energy;
         }
 
         animationFrameIdRef.current = requestAnimationFrame(trackPitch);
@@ -103,6 +117,7 @@ async function startHostMicrophone() {
     video_id: string;
     title: string;
     added_by: string; // Ang UUID ng user na nag-queue
+    added_by_name?: string | null;
   }) {
     setIsSinging(false);
 
@@ -118,41 +133,70 @@ async function startHostMicrophone() {
       audioContextRef.current.close();
     }
 
-    const allScores = sessionScoresRef.current;
-    const totalScore = allScores.reduce((acc, score) => acc + score, 0);
-    const finalScore = allScores.length > 0 ? Math.round(totalScore / allScores.length) : 0;
+    const pitchScores = sessionPitchScoresRef.current;
+    const rhythmScores = sessionRhythmScoresRef.current;
+    const averagePitchScore =
+      pitchScores.length > 0
+        ? Math.round(pitchScores.reduce((acc, score) => acc + score, 0) / pitchScores.length)
+        : 0;
+    const averageRhythmScore =
+      rhythmScores.length > 0
+        ? Math.round(rhythmScores.reduce((acc, score) => acc + score, 0) / rhythmScores.length)
+        : 0;
+    const totalScore = pitchScores.length > 0 || rhythmScores.length > 0
+      ? Math.round((averagePitchScore + averageRhythmScore) / 2)
+      : 0;
 
-    console.log(`🏆 Final Score Computed: ${finalScore} para kay User ID: ${currentSong.added_by}`);
+    console.log(
+      `🏆 Final Score Computed: ${totalScore} (pitch ${averagePitchScore}, rhythm ${averageRhythmScore}) para kay User ID: ${currentSong.added_by}`
+    );
 
-    if (!hasMic || finalScore === 0) {
+    if (!hasMic || totalScore === 0) {
       console.log("ℹ️ No microphone input or zero score. Skipping Supabase save.");
-      return finalScore;
+      return totalScore;
     }
 
     if (!currentSong.added_by) {
       console.error("Hindi mai-save ang score dahil walang valid na 'added_by' user ID.");
-      return finalScore;
+      return totalScore;
     }
 
-    // Isaksak ang record sa iyong 'scores' table na ginawa natin sa Supabase
-    const { error } = await supabase.from("scores").insert([
-      {
-        room_code: currentSong.room_code,
-        video_id: currentSong.video_id,
-        title: currentSong.title,
-        user_id: currentSong.added_by, // Ipinasa natin dito ang 'added_by'
-        pitch_score: finalScore,
-        total_score: finalScore,
-      },
-    ]);
+    // Prepare payload and attempt insert. If the DB doesn't have the
+    // `added_by_name` column (schema mismatch), retry without it.
+    const scorePayload: Record<string, unknown> = {
+      room_code: currentSong.room_code,
+      video_id: currentSong.video_id,
+      title: currentSong.title,
+      user_id: currentSong.added_by,
+      added_by_name: currentSong.added_by_name ?? null,
+      pitch_score: averagePitchScore,
+      rhythm_score: averageRhythmScore,
+      total_score: totalScore,
+    };
+
+    const { error } = await supabase.from("scores").insert([scorePayload]);
 
     if (!error) {
       console.log("🚀 Score record updated successfully in Supabase!");
+    } else if (error?.code === "PGRST204" && typeof error.message === "string" && error.message.includes("added_by_name")) {
+      // Supabase says the column is missing in its schema cache.
+      console.warn("Supabase missing 'added_by_name' column — retrying insert without it.");
+      const fallbackPayload = { ...scorePayload };
+      // remove the optional column for fallback
+       
+      delete (fallbackPayload as Record<string, unknown>).added_by_name;
+
+      const { error: retryErr } = await supabase.from("scores").insert([fallbackPayload]);
+      if (!retryErr) {
+        console.log("🚀 Score record saved (without added_by_name) in Supabase.");
+      } else {
+        console.error("Error inserting score to Supabase on retry:", retryErr);
+      }
     } else {
       console.error("Error inserting score to Supabase:", error);
     }
 
-    return finalScore;
+    return totalScore;
   }
 
   function getRMS(buffer: Float32Array): number {
