@@ -114,7 +114,7 @@ export default function LeaderboardPage() {
         queryError = res.error;
 
         const looksLikeMissingColumn = !!queryError && (
-          queryError.code === "PGRST204" ||
+          (queryError as any).code === "PGRST204" ||
           /added_by_name/i.test(String((queryError as any).message || "")) ||
           ((queryError as any).status === 400 && /column/i.test(String((queryError as any).message || "")))
         );
