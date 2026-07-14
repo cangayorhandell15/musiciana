@@ -42,6 +42,18 @@ export function useYouTubePlayer({
   const [isMuted, setIsMuted] = useState(true);
   const [restrictedVideoIds, setRestrictedVideoIds] = useState<Set<string>>(new Set());
 
+  // Kept in sync below so onReady (recreated per song, inside
+  // createOrReloadPlayer) always reads the CURRENT mute state instead
+  // of unconditionally muting every newly created player. Before this,
+  // a brand new player was always muted on ready, and the separate
+  // mute/unmute-sync effect (keyed on `isMuted`) only re-ran when
+  // isMuted itself CHANGED — so once a user unmuted song 1, song 2's
+  // fresh player stayed muted with nothing left to unmute it.
+  const isMutedRef = useRef(isMuted);
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
+
   // Kuhanin ang microphone functions mula sa scoring engine hook
   const { startHostMicrophone, stopHostMicrophoneAndSave } = useMicScoring();
 
@@ -195,9 +207,17 @@ export function useYouTubePlayer({
       events: {
         onReady: (event) => {
           try {
-            event.target.mute();
+            // Respect whatever the user last chose, not a hardcoded mute.
+            // A freshly created player defaults to unmuted, so without
+            // this branch every new song silently re-muted itself even
+            // after the user had already unmuted once.
+            if (isMutedRef.current) {
+              event.target.mute();
+            } else {
+              event.target.unMute();
+            }
           } catch (error) {
-            console.warn("YouTube mute failed:", error);
+            console.warn("YouTube mute/unmute failed:", error);
           }
           try {
             event.target.playVideo();
